@@ -1369,24 +1369,27 @@ a.ao-cap:hover h4::after { opacity: 1; }
 
 /* ------------------------------------------------ Landing hero illustration (isometric 5-layer stack) */
 :root {
-  --hv-top: #1d212b; --hv-left: #14171e; --hv-right: #0d0f14; --hv-edge: rgba(255, 255, 255, 0.12);
-  --hv-chip-top: #2a2f3b; --hv-chip-left: #1b1e26; --hv-chip-right: #121419;
-  --hv-trace: rgba(200, 205, 214, 0.28);
+  --hv-side-a: #2b303a; --hv-side-b: #1a1d24; --hv-side-c: #0f1115;
+  --hv-glass-a: #262b35; --hv-glass-b: #14171d; --hv-edge: rgba(255, 255, 255, 0.14);
+  --hv-pcb: rgba(112, 207, 248, 0.16); --hv-engrave: rgba(226, 232, 240, 0.42); --hv-mark: rgba(226, 232, 240, 0.35);
+  --hv-trace: rgba(200, 205, 214, 0.3); --hv-sheath: #0b0d11; --hv-plug: #1e222b;
   --hv-c1: #70cff8; --hv-c2: #a78bfa; --hv-c3: #f472b6; --hv-c4: #34d399; --hv-c5: #d4af37;
   --hv-glow: 0.55;
 }
 :root[data-theme="light"] {
-  --hv-top: #f8fafc; --hv-left: #dde3ea; --hv-right: #c6cfda; --hv-edge: rgba(15, 23, 42, 0.16);
-  --hv-chip-top: #3a414f; --hv-chip-left: #2a303b; --hv-chip-right: #1e232c;
-  --hv-trace: rgba(71, 85, 105, 0.35);
+  --hv-side-a: #eef1f5; --hv-side-b: #c9d0d9; --hv-side-c: #aab3be;
+  --hv-glass-a: #fbfcfd; --hv-glass-b: #dce2e9; --hv-edge: rgba(15, 23, 42, 0.18);
+  --hv-pcb: rgba(71, 85, 105, 0.16); --hv-engrave: rgba(51, 65, 85, 0.55); --hv-mark: rgba(51, 65, 85, 0.4);
+  --hv-trace: rgba(71, 85, 105, 0.35); --hv-sheath: #475569; --hv-plug: #f1f5f9;
   --hv-c1: #0284c7; --hv-c2: #7c3aed; --hv-c3: #db2777; --hv-c4: #059669; --hv-c5: #b45309;
   --hv-glow: 0.35;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --hv-top: #f8fafc; --hv-left: #dde3ea; --hv-right: #c6cfda; --hv-edge: rgba(15, 23, 42, 0.16);
-    --hv-chip-top: #3a414f; --hv-chip-left: #2a303b; --hv-chip-right: #1e232c;
-    --hv-trace: rgba(71, 85, 105, 0.35);
+    --hv-side-a: #eef1f5; --hv-side-b: #c9d0d9; --hv-side-c: #aab3be;
+    --hv-glass-a: #fbfcfd; --hv-glass-b: #dce2e9; --hv-edge: rgba(15, 23, 42, 0.18);
+    --hv-pcb: rgba(71, 85, 105, 0.16); --hv-engrave: rgba(51, 65, 85, 0.55); --hv-mark: rgba(51, 65, 85, 0.4);
+    --hv-trace: rgba(71, 85, 105, 0.35); --hv-sheath: #475569; --hv-plug: #f1f5f9;
     --hv-c1: #0284c7; --hv-c2: #7c3aed; --hv-c3: #db2777; --hv-c4: #059669; --hv-c5: #b45309;
     --hv-glow: 0.35;
   }
@@ -1397,62 +1400,90 @@ a.ao-cap:hover h4::after { opacity: 1; }
 .hero-visual .hs-n { order: -1; }
 .hero-art {
   position: absolute; z-index: 2; right: -64px; top: -96px; height: calc(100% + 150px); width: auto;
-  pointer-events: none; overflow: visible; filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.25));
+  pointer-events: none; overflow: visible; filter: drop-shadow(0 26px 34px rgba(0, 0, 0, 0.28));
 }
 .hero-art .hv-l1 { --c: var(--hv-c1); } .hero-art .hv-l2 { --c: var(--hv-c2); } .hero-art .hv-l3 { --c: var(--hv-c3); }
 .hero-art .hv-l4 { --c: var(--hv-c4); } .hero-art .hv-l5 { --c: var(--hv-c5); }
-.hero-art polygon { stroke: var(--hv-edge); stroke-width: 0.8; stroke-linejoin: round; }
-.hero-art .hv-slab .f-t, .hero-art .hv-dev .f-t { fill: var(--hv-top); }
-.hero-art .hv-slab .f-l, .hero-art .hv-dev .f-l { fill: var(--hv-left); }
-.hero-art .hv-slab .f-r, .hero-art .hv-dev .f-r { fill: var(--hv-right); }
-.hero-art .hv-rim { fill: none; stroke: var(--c); stroke-width: 1.6; opacity: 0.85; filter: drop-shadow(0 0 3px var(--c)); }
-.hero-art :is(.hv-chip, .hv-node) .f-t { fill: var(--hv-chip-top); }
-.hero-art :is(.hv-chip, .hv-node) .f-l { fill: var(--hv-chip-left); }
-.hero-art :is(.hv-chip, .hv-node) .f-r { fill: var(--hv-chip-right); }
-.hero-art .hv-die .f-t { fill: var(--c); opacity: 0.9; }
-.hero-art .hv-die .f-l, .hero-art .hv-die .f-r { fill: var(--c); opacity: 0.55; }
-.hero-art .hv-conn .f-t, .hero-art .hv-conn .f-l, .hero-art .hv-conn .f-r { fill: var(--c); }
-.hero-art .hv-conn .f-l { opacity: 0.75; } .hero-art .hv-conn .f-r { opacity: 0.55; }
-.hero-art .hv-conn.c2 { --c: var(--hv-c4); } .hero-art .hv-conn.c3 { --c: var(--hv-c1); }
+.hero-art polygon { stroke: var(--hv-edge); stroke-width: 0.6; stroke-linejoin: round; }
+/* slabs: brushed metal sides, a lit glass/aluminium top */
+.hero-art .m-slab .f-l { fill: url(#hv-g-slab-l); }
+.hero-art .m-slab .f-r { fill: url(#hv-g-slab-r); }
+.hero-art .hv-glass { fill: url(#hv-g-glass); stroke: var(--hv-edge); stroke-width: 1.4; }
+.hero-art .hv-sheen { fill: url(#hv-g-sheen); }
+.hero-art .hv-inner { fill: none; stroke: var(--c); stroke-opacity: 0.35; stroke-width: 1.2; }
+.hero-art .hv-mark { fill: none; stroke: var(--hv-mark); stroke-width: 2; }
+.hero-art .hv-engrave { font: 700 9px var(--mono); letter-spacing: 0.08em; fill: var(--hv-engrave); }
+.hero-art .hv-pcb { fill: none; stroke: var(--hv-pcb); stroke-width: 2.4; stroke-linejoin: round; }
+.hero-art .hv-via { fill: none; stroke: var(--hv-pcb); stroke-width: 1.6; }
+.hero-art .hv-rim { fill: none; stroke: var(--c); stroke-width: 1.5; filter: drop-shadow(0 0 3px var(--c)); }
+.hero-art .hv-strip { fill: none; stroke: var(--c); stroke-width: 1.2; opacity: 0.8; filter: drop-shadow(0 0 2px var(--c)); }
+.hero-art .hv-underglow { fill: var(--c); opacity: calc(var(--hv-glow) * 0.55); filter: url(#hv-blur); }
+.hero-art .hv-ao { fill: url(#hv-g-ao); }
+/* L1 is a frosted glass plate, like a display cover glass */
+.hero-art .hv-l1 .hv-glass { fill: var(--c); fill-opacity: 0.1; }
+.hero-art .hv-l1 .m-slab .f-l, .hero-art .hv-l1 .m-slab .f-r { fill: var(--c); fill-opacity: 0.18; }
+.hero-art .hv-l1 .hv-circuit { display: none; }
+/* components */
+.hero-art .m-chip .f-t { fill: url(#hv-g-chip); }
+.hero-art .m-chip .f-l { fill: #1b1e25; } .hero-art .m-chip .f-r { fill: #111318; }
+.hero-art .hv-chip-hi { fill: none; stroke: rgba(255, 255, 255, 0.1); stroke-width: 3; }
+.hero-art .hv-pin1 { fill: rgba(255, 255, 255, 0.18); }
+.hero-art .hv-chip-txt { font: 800 25px var(--mono); fill: #e2e8f0; letter-spacing: -0.02em; }
+.hero-art .hv-chip-sub { font: 600 18px var(--mono); fill: var(--c); }
+.hero-art .hv-etch { font: 800 40px var(--mono); fill: #4b5563; letter-spacing: 0.04em; }
+.hero-art .hv-etch.sm { font-size: 16px; font-weight: 600; }
+.hero-art .m-leg :is(.f-l, .f-r) { fill: #b8c0cb; stroke: none; }
+.hero-art .m-metal .f-t, .hero-art .m-spreader .f-t { fill: url(#hv-g-metal); }
+.hero-art :is(.m-metal, .m-spreader) .f-l { fill: #9aa3af; } .hero-art :is(.m-metal, .m-spreader) .f-r { fill: #7c8592; }
+.hero-art .m-cap .f-t { fill: #c7a46a; } .hero-art .m-cap .f-l { fill: #a5844f; } .hero-art .m-cap .f-r { fill: #8b6d3e; }
+.hero-art .m-plug .f-t { fill: var(--hv-plug); } .hero-art .m-plug .f-l { fill: var(--hv-side-b); } .hero-art .m-plug .f-r { fill: var(--hv-side-c); }
+.hero-art .hv-led { fill: var(--c); filter: drop-shadow(0 0 2px var(--c)); }
 .hero-art .hv-trace { stroke: var(--hv-trace); stroke-width: 1.4; fill: none; stroke-linecap: round; }
-.hero-art .hv-trace.hv-flow { stroke: var(--c); opacity: 0.9; }
-.hero-art .hv-wire { fill: none; stroke-width: 2; stroke-linecap: round; stroke: var(--hv-c5); }
-.hero-art .hv-wire.w2 { stroke: var(--hv-c4); } .hero-art .hv-wire.w3 { stroke: var(--hv-c1); }
-.hero-art .hv-dot { fill: var(--c); filter: drop-shadow(0 0 4px var(--c)); }
-.hero-art .hv-riser { stroke: var(--hv-trace); stroke-width: 3; stroke-linecap: round; }
-.hero-art .hv-riser.hv-flow { stroke: var(--c); stroke-width: 1.6; }
-.hero-art .hv-flow { stroke-dasharray: 3 7; animation: hv-flow 1.4s linear infinite; }
-@keyframes hv-flow { to { stroke-dashoffset: -20; } }
-@media (prefers-reduced-motion: reduce) { .hero-art .hv-flow { animation: none; } }
+.hero-art .hv-trace.on { stroke: var(--c); opacity: 0.85; filter: drop-shadow(0 0 2px var(--c)); }
+.hero-art .hv-beam { stroke: var(--c); stroke-width: 1.4; opacity: 0.7; filter: drop-shadow(0 0 3px var(--c)); }
+/* cable bundles between layers */
+.hero-art .hv-sheath { fill: none; stroke: var(--hv-sheath); stroke-linecap: round; opacity: 0.55; }
+.hero-art .hv-wire { fill: none; stroke-width: 1.3; stroke-linecap: round; }
+.hero-art .hv-wire.w1 { stroke: #38bdf8; } .hero-art .hv-wire.w2 { stroke: #fbbf24; } .hero-art .hv-wire.w3 { stroke: #cbd5e1; }
+.hero-art .hv-wire.w4 { stroke: #34d399; } .hero-art .hv-wire.w5 { stroke: #818cf8; }
+.hero-art .hv-pulse {
+  fill: #fff; filter: drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 6px var(--c));
+  offset-rotate: 0deg; animation: hv-run 1.7s linear infinite;
+}
+.hero-art .hv-pulse.sm { r: 1.6; }
+@keyframes hv-run { from { offset-distance: 0%; } to { offset-distance: 100%; } }
+@media (prefers-reduced-motion: reduce) { .hero-art .hv-pulse { display: none; } }
 /* AVN head-unit screen: always a dark display, like the real thing */
-.hero-art .avn-back { fill: var(--hv-chip-right); }
-.hero-art .avn-bezel { fill: #0b0d12; stroke: var(--hv-edge); stroke-width: 0.8; }
-.hero-art .avn-glass { fill: #111827; }
-.hero-art .avn-map { fill: #1a2333; }
-.hero-art .avn-street { stroke: #2d3a50; stroke-width: 3; fill: none; }
-.hero-art .avn-route { stroke: #70cff8; stroke-width: 3.2; fill: none; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 3px #70cff8); }
-.hero-art .avn-pos { fill: #70cff8; stroke: #fff; stroke-width: 1.5; }
+.hero-art .avn-back { fill: #05070a; }
+.hero-art .avn-bezel { fill: #0b0d12; stroke: rgba(255, 255, 255, 0.22); stroke-width: 1; }
+.hero-art .avn-glass { fill: #0e1522; }
+.hero-art .avn-map { fill: #131c2b; }
+.hero-art .avn-blocks rect { fill: #1b2638; }
+.hero-art .avn-road { stroke: #2a3950; stroke-width: 3.4; fill: none; }
+.hero-art .avn-route-glow { stroke: #70cff8; stroke-width: 7; fill: none; opacity: 0.25; stroke-linejoin: round; stroke-linecap: round; }
+.hero-art .avn-route { stroke: #70cff8; stroke-width: 3; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.hero-art .avn-car { fill: #fff; filter: drop-shadow(0 0 2px #70cff8); }
 .hero-art .avn-pin { fill: #f472b6; }
-.hero-art .avn-card { fill: rgba(30, 41, 59, 0.92); stroke: rgba(255, 255, 255, 0.08); stroke-width: 0.6; }
+.hero-art .avn-card { fill: rgba(22, 32, 48, 0.94); stroke: rgba(255, 255, 255, 0.08); stroke-width: 0.6; }
 .hero-art .avn-turn { stroke: #34d399; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.hero-art .avn-art { fill: url(#hv-art); }
+.hero-art .avn-art { fill: url(#hv-g-art); }
 .hero-art .avn-note { stroke: #fff; stroke-width: 2; fill: none; opacity: 0.9; }
 .hero-art .avn-note-h { fill: #fff; opacity: 0.9; }
 .hero-art .avn-bar { fill: rgba(255, 255, 255, 0.18); } .hero-art .avn-bar.on { fill: #70cff8; }
-.hero-art .avn-dock { fill: #0b1220; }
+.hero-art .avn-dock { fill: #080d17; }
 .hero-art .avn-txt { font: 600 6px var(--font); fill: #e2e8f0; }
-.hero-art .avn-txt.dim { fill: #8a94a6; font-weight: 500; font-size: 5px; }
+.hero-art .avn-txt.dim { fill: #8a94a6; font-weight: 500; font-size: 4.6px; }
 .hero-art .avn-txt.big { font-size: 8px; font-weight: 700; }
 .hero-art .avn-txt.temp { font-size: 8px; font-weight: 700; fill: #fbbf24; }
 .hero-art .avn-ico.a1 { fill: #70cff8; } .hero-art .avn-ico.a2 { fill: #34d399; } .hero-art .avn-ico.a3 { fill: #a78bfa; }
 .hero-art .avn-ico.a4 { fill: #f472b6; } .hero-art .avn-ico.a5 { fill: #fbbf24; }
+.hero-art .avn-reflect { fill: url(#hv-g-reflect); }
 @media (max-width: 1100px) {
   .hero-visual { max-width: 640px; margin-top: 80px; }
   .hero-art { right: 0; }
 }
 @media (max-width: 640px) {
-  .hero-visual { margin-top: 0; }
-  .hero-visual { display: flex; flex-direction: column; }
+  .hero-visual { margin-top: 0; display: flex; flex-direction: column; }
   .hero-visual .hs-layer { padding-right: 18px; }
   .hero-art { position: static; order: -1; width: min(300px, 86%); height: auto; margin: 0 auto 8px; }
 }
