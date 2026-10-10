@@ -680,7 +680,7 @@
 
   /* -------------------------------------------------- Sequence engine */
   /**
-   * lanes: [{title, sub}]
+   * lanes: [{title, sub, tone?:'app'|'fw'|'native'|'hal'|'hw'|'ext'}]
    * steps: [{from, to, kind:'call'|'ipc'|'hw'|'ret', label, svg, title, detail, code, codeLang, codeFile, analogy, tags}]
    */
   function SequenceDiagram(host, opts) {
@@ -701,7 +701,7 @@
       const x = padX + laneW * i + 6;
       svg += `<line class="seq-lifeline" x1="${lx(i)}" y1="${headH}" x2="${lx(i)}" y2="${H - 8}"/>`;
       const tip = l.tip || (window.AAOS.Diagram ? window.AAOS.Diagram.termTip(l.title) || window.AAOS.Diagram.termTip(l.sub) : "");
-      svg += `<g class="seq-lane"${tip ? ` data-tip="${esc(tip)}"` : ""}><rect class="seq-lane-box" data-lane="${i}" x="${x}" y="8" width="${laneW - 12}" height="${headH - 14}" rx="9"/>`;
+      svg += `<g class="seq-lane${l.tone ? " tn-" + l.tone : ""}"${tip ? ` data-tip="${esc(tip)}"` : ""}><rect class="seq-lane-box" data-lane="${i}" x="${x}" y="8" width="${laneW - 12}" height="${headH - 14}" rx="9"/>`;
       svg += `<text class="seq-lane-title" x="${lx(i)}" y="30" text-anchor="middle">${esc(l.title)}</text>`;
       svg += `<text class="seq-lane-sub" x="${lx(i)}" y="46" text-anchor="middle">${esc(l.sub)}</text></g>`;
     });

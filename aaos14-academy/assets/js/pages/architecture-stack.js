@@ -2,16 +2,17 @@
 (function () {
   "use strict";
   const { $, $$, esc, codeBlockHTML, wireCopy, Diagram: D } = window.AAOS;
-  const CYAN = "var(--dg-cyan)", VIOLET = CYAN, PINK = "var(--dg-amber)", GREEN = CYAN, AMBER = "var(--dg-amber)";
+  // Layer tones shared with the layered diagrams: L1 blue · L2 green · L3 amber · L4 purple · L5 orange
+  const T_APP = "var(--tone-app)", T_FW = "var(--tone-fw)", T_AIDL = "var(--tone-treble)", T_HAL = "var(--tone-hal)", T_HW = "var(--tone-hw)";
   const tip = (label, extra) => { const t = extra || D.termTip(label); return t ? ` data-tip="${esc(t)}" tabindex="0"` : ""; };
 
   /* =========================== 5-layer stack =========================== */
   const LAYERS = [
-    { n: "L1", i: 0, name: "Applications", c: CYAN, chips: ["Car Launcher", "HVAC (CarSystemUI)", "Cluster app", "OEM apps", "Car App Library"], meta: [["Language", "Kotlin / Java"], ["Process", "one per app"], ["Partition", "/system · /product · /data"]] },
-    { n: "L2", i: 1, name: "Car API & Framework", c: VIOLET, chips: ["CarPropertyManager", "CarAudioManager", "CarPowerManager", "CarService", "VehicleHal"], meta: [["Language", "Java"], ["Process", "com.android.car"], ["Partition", "/system + updatable APEX"]] },
-    { n: "L3", i: 2, name: "System IPC / AIDL contract", c: PINK, chips: ["IVehicle.aidl", "IVehicleCallback.aidl", "Binder", "servicemanager", "VINTF"], meta: [["Language", "Stable AIDL"], ["Transport", "Binder driver"], ["Rule", "versioned · @VintfStability"]], boundary: true },
-    { n: "L4", i: 3, name: "Vehicle HAL (VHAL)", c: GREEN, chips: ["DefaultVehicleHal", "IVehicleHardware", "SubscriptionManager", "DBC mapping"], meta: [["Language", "C++"], ["Process", "vehicle HAL service"], ["Partition", "/vendor"]] },
-    { n: "L5", i: 4, name: "MCU & Vehicle Bus", c: AMBER, chips: ["MCU", "AUTOSAR", "CAN FD", "LIN", "Automotive Ethernet", "SocketCAN"], meta: [["Language", "C (embedded)"], ["Runs on", "MCU + kernel drivers"], ["Partition", "outside Android"]] },
+    { n: "L1", i: 0, name: "Applications", c: T_APP, chips: ["Car Launcher", "HVAC (CarSystemUI)", "Cluster app", "OEM apps", "Car App Library"], meta: [["Language", "Kotlin / Java"], ["Process", "one per app"], ["Partition", "/system · /product · /data"]] },
+    { n: "L2", i: 1, name: "Car API & Framework", c: T_FW, chips: ["CarPropertyManager", "CarAudioManager", "CarPowerManager", "CarService", "VehicleHal"], meta: [["Language", "Java"], ["Process", "com.android.car"], ["Partition", "/system + updatable APEX"]] },
+    { n: "L3", i: 2, name: "System IPC / AIDL contract", c: T_AIDL, chips: ["IVehicle.aidl", "IVehicleCallback.aidl", "Binder", "servicemanager", "VINTF"], meta: [["Language", "Stable AIDL"], ["Transport", "Binder driver"], ["Rule", "versioned · @VintfStability"]], boundary: true },
+    { n: "L4", i: 3, name: "Vehicle HAL (VHAL)", c: T_HAL, chips: ["DefaultVehicleHal", "IVehicleHardware", "SubscriptionManager", "DBC mapping"], meta: [["Language", "C++"], ["Process", "vehicle HAL service"], ["Partition", "/vendor"]] },
+    { n: "L5", i: 4, name: "MCU & Vehicle Bus", c: T_HW, chips: ["MCU", "AUTOSAR", "CAN FD", "LIN", "Automotive Ethernet", "SocketCAN"], meta: [["Language", "C (embedded)"], ["Runs on", "MCU + kernel drivers"], ["Partition", "outside Android"]] },
   ];
   const CHIP_TIPS = {
     "Car Launcher": "Car Launcher — IVI home screen on the main display",
@@ -27,15 +28,15 @@
     "DBC mapping": "DBC mapping — property ID ↔ CAN frame/signal (start bit, scale, offset)",
   };
   const ZONES = [
-    { label: "Android user space", sub: "apps & car-lib", zc: CYAN, layers: [0] },
-    { link: { lk: VIOLET, html: "<b>Binder IPC</b> · car-lib managers are proxies to <code>ICarProperty</code> / <code>ICar</code> in CarService" } },
-    { label: "System services", sub: "framework · policy & permissions", zc: VIOLET, layers: [1] },
-    { link: { lk: VIOLET, html: "<b>Binder IPC</b> · <code>IVehicle.setValues()</code> down · <code>IVehicleCallback.onPropertyEvent()</code> up" } },
-    { label: "Treble boundary", sub: "stable, versioned contract between /system and /vendor", zc: PINK, layers: [2], boundary: true },
-    { link: { lk: PINK, html: "<b>Implemented by</b> <code>DefaultVehicleHal</code> (<code>BnVehicle</code>) in the vendor VHAL process" } },
-    { label: "Native hardware abstraction (HAL)", sub: "vendor C++ on /vendor", zc: GREEN, layers: [3] },
-    { link: { lk: AMBER, html: "<b>Hardware drivers</b> · SocketCAN / SPI / Ethernet → MCU → CAN FD frames" } },
-    { label: "MCU & vehicle bus", sub: "real-time world outside Android", zc: AMBER, layers: [4] },
+    { label: "Android user space", sub: "apps & car-lib", zc: T_APP, layers: [0] },
+    { link: { lk: T_APP, html: "<b>Binder IPC</b> · car-lib managers are proxies to <code>ICarProperty</code> / <code>ICar</code> in CarService" } },
+    { label: "System services", sub: "framework · policy & permissions", zc: T_FW, layers: [1] },
+    { link: { lk: T_FW, html: "<b>Binder IPC</b> · <code>IVehicle.setValues()</code> down · <code>IVehicleCallback.onPropertyEvent()</code> up" } },
+    { label: "Treble boundary", sub: "stable, versioned contract between /system and /vendor", zc: T_AIDL, layers: [2], boundary: true },
+    { link: { lk: T_AIDL, html: "<b>Implemented by</b> <code>DefaultVehicleHal</code> (<code>BnVehicle</code>) in the vendor VHAL process" } },
+    { label: "Native hardware abstraction (HAL)", sub: "vendor C++ on /vendor", zc: T_HAL, layers: [3] },
+    { link: { lk: T_HW, html: "<b>Hardware drivers</b> · SocketCAN / SPI / Ethernet → MCU → CAN FD frames" } },
+    { label: "MCU & vehicle bus", sub: "real-time world outside Android", zc: T_HW, layers: [4] },
   ];
   const layerHTML = (l) => `<button class="s5-layer" style="--lc:${l.c}" data-i="${l.i}" aria-label="${l.n} ${esc(l.name)} — open in layer explorer">
       <span class="s5-badge">${l.n}</span>
@@ -59,13 +60,13 @@
   const host = $("#signal-flow-diagram");
   if (!host) return;
   const NODES = [
-    { t: "Touchscreen App", l: "[App] L1", sub: "com.oem.hvac · Kotlin", c: CYAN, tip: "HVAC app UI — shows the value the vehicle reports, never just the intent" },
-    { t: "CarPropertyManager", l: "[API] L2", sub: "android.car · in-process", c: VIOLET },
-    { t: "CarService", l: "[Svc] L2", sub: "CarPropertyService", c: VIOLET },
-    { t: "AIDL IVehicle", l: "[AIDL] L3", sub: "Binder · Treble boundary", c: PINK },
-    { t: "C++ VHAL", l: "[HAL] L4", sub: "DefaultVehicleHal", c: GREEN, tip: "VHAL — translates the property into the OEM's CAN signal" },
-    { t: "CAN Driver", l: "[Driver] L5", sub: "SocketCAN can0 / MCU", c: AMBER, tip: "CAN driver — SocketCAN or an SPI link to the MCU that owns the bus" },
-    { t: "HVAC ECU", l: "[ECU] L5", sub: "CAN FD · blend door", c: AMBER, tip: "HVAC ECU — applies the setpoint and reports the actual state" },
+    { t: "Touchscreen App", l: "[App] L1", sub: "com.oem.hvac · Kotlin", c: T_APP, tip: "HVAC app UI — shows the value the vehicle reports, never just the intent" },
+    { t: "CarPropertyManager", l: "[API] L2", sub: "android.car · in-process", c: T_FW },
+    { t: "CarService", l: "[Svc] L2", sub: "CarPropertyService", c: T_FW },
+    { t: "AIDL IVehicle", l: "[AIDL] L3", sub: "Binder · Treble boundary", c: T_AIDL },
+    { t: "C++ VHAL", l: "[HAL] L4", sub: "DefaultVehicleHal", c: T_HAL, tip: "VHAL — translates the property into the OEM's CAN signal" },
+    { t: "CAN Driver", l: "[Driver] L5", sub: "SocketCAN can0 / MCU", c: T_HW, tip: "CAN driver — SocketCAN or an SPI link to the MCU that owns the bus" },
+    { t: "HVAC ECU", l: "[ECU] L5", sub: "CAN FD · blend door", c: T_HW, tip: "HVAC ECU — applies the setpoint and reports the actual state" },
   ];
   const S = [
     { node: 0, link: -1, dir: "req", title: "Tap ▲ — the UI shows 24.0 °C as pending", ipc: "Main thread", detail: "The climate panel receives the touch. Good AAOS UIs never treat the requested value as truth: they show a pending state until the vehicle confirms.", lang: "kotlin", file: "HvacFragment.kt", code: "binding.btnUp.setOnClickListener {\n    viewModel.showPending(24.0f)          // amber: waiting for the car\n    controller.setDriverTemperature(24.0f)\n}" },

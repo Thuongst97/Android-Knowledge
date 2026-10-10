@@ -159,11 +159,20 @@
   /* ---------------------------------------------------- Layered architecture renderer
      spec = {
        id, label, nodeH?,
-       bands: [{ key, tag:"L1", title:["Applications &", "UI Framework"], sub:["/system_ext", "/product"], treble?:true, amber?:true }],
-       nodes: [{ id, band, row?, rows?, at?:[x0,x1] (fractions of the lane), span?, title, sub?, tag?:"App", tip?, hl?, soft? }],
+       bands: [{ key, tag:"L1", title:["Applications &", "UI Framework"], sub:["/system_ext", "/product"], treble?:true, tone? }],
+       nodes: [{ id, band, row?, rows?, at?:[x0,x1] (fractions of the lane), span?, title, sub?, tag?:"App", tip?, hl?, soft?, tone? }],
        edges: [{ from, to, kind:"ipc"|"call"|"hw"|"opt", label?, side?:"right"|"left", marker?:"AIDL" }],
      } */
   const LG = { X0: 186, X1: 958, PAD: 16, ROW_GAP: 10, BAND_GAP: 10, TREBLE_H: 46 };
+  /* Layer tones — every band and card is tinted by what it is, so a layer reads at a glance:
+     app = blue · fw = green · native = grey · treble = amber · hal = purple · hw = orange · ext = teal */
+  const BAND_TONE = { L1: "app", L2: "fw", L3: "treble", L4: "hal", L5: "hw" };
+  const TAG_TONE = {
+    App: "app", API: "app", "UI lib": "app", Svc: "fw", Policy: "fw",
+    Native: "native", Kernel: "native", KRNL: "native", Runtime: "native", Fork: "native",
+    HAL: "hal", HW: "hw", MCU: "hw", Bus: "hw", ECU: "hw", Config: "ext", "Plug-in": "ext",
+  };
+  const TONE_LABEL = { app: "Apps · car-lib API", fw: "Framework services", native: "Native · kernel", hal: "Vendor HAL", hw: "MCU · bus · ECU", ext: "OEM config · plug-in" };
   const KIND_LABEL = { ipc: "Binder IPC / AIDL", call: "In-process call", hw: "Hardware link / bus", opt: "Optional · plug-in · config" };
   /** Wrap text into ≤ maxLines lines of ≤ maxChars, breaking after spaces, "_" or at camelCase humps. */
   function wrap(str, maxChars, maxLines) {
@@ -193,8 +202,9 @@
     spec.bands.forEach((b) => {
       const mine = spec.nodes.filter((n) => n.band === b.key);
       const rows = b.treble ? 0 : Math.max(1, ...mine.map((n) => (n.row || 0) + (n.rows || 1)));
-      const h = b.treble ? LG.TREBLE_H : Math.max(b.minH || 0, LG.PAD * 2 + rows * NODE_H + (rows - 1) * LG.ROW_GAP);
-      bands[b.key] = { ...b, y, h, rows };
+      const labelH = 52 + [].concat(b.title || []).length * 14 + [].concat(b.sub || []).length * 12; // side label must fit inside the band
+      const h = b.treble ? LG.TREBLE_H : Math.max(b.minH || 0, labelH, LG.PAD * 2 + rows * NODE_H + (rows - 1) * LG.ROW_GAP);
+      bands[b.key] = { ...b, y, h, rows, tone: b.tone || BAND_TONE[b.tag] || (b.amber ? "hw" : "app") };
       y += h + LG.BAND_GAP;
     });
     const H = y - LG.BAND_GAP + 8;
@@ -215,6 +225,7 @@
           const rr = n.rows || 1;
           n._y = B.y + LG.PAD + +r * (NODE_H + LG.ROW_GAP);
           n._h = NODE_H * rr + LG.ROW_GAP * (rr - 1);
+          n._tone = n.tone || TAG_TONE[n.tag] || B.tone;
           nodes[n.id] = n;
         });
       });
@@ -263,7 +274,6 @@
 
     // ---- draw
     let s = `<defs>
-      <linearGradient id="${id}-band" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="lg-sa"/><stop offset="1" class="lg-sb"/></linearGradient>
       <linearGradient id="${id}-treble" gradientUnits="userSpaceOnUse" x1="${LG.X0 - 10}" y1="0" x2="${LG.X1 + 20}" y2="0">
         <stop offset="0" class="lg-t0"/><stop offset="0.12" class="lg-t1"/>
         <stop offset="0.5" class="lg-t2"/><stop offset="0.88" class="lg-t1"/><stop offset="1" class="lg-t0"/></linearGradient>
@@ -283,11 +293,13 @@
         B.ty = ty;
         return;
       }
-      s += `<rect class="lg-band" x="12" y="${B.y}" width="976" height="${B.h}" rx="12" fill="url(#${id}-band)"/>`;
+      const bw = Math.max(34, (b.tag || "").length * 6.4 + 14);
+      s += `<g class="lg-bandg tn-${B.tone}"><rect class="lg-band" x="12" y="${B.y}" width="976" height="${B.h}" rx="12"/>`;
       s += `<line class="lg-divider" x1="${LG.X0 - 14}" y1="${B.y + 12}" x2="${LG.X0 - 14}" y2="${B.y + B.h - 12}"/>`;
-      s += `<g class="lg-badge${b.amber ? " amber" : ""}"><rect x="24" y="${B.y + 14}" width="34" height="17" rx="5"/><text x="41" y="${B.y + 26}" text-anchor="middle">${esc(b.tag || "")}</text></g>`;
+      s += `<g class="lg-badge"><rect x="24" y="${B.y + 14}" width="${bw}" height="17" rx="5"/><text x="${24 + bw / 2}" y="${B.y + 26}" text-anchor="middle">${esc(b.tag || "")}</text></g>`;
       titles.forEach((t, k) => { s += `<text class="lg-btitle" x="24" y="${B.y + 48 + k * 14}">${esc(t)}</text>`; });
       subs.forEach((t, k) => { s += `<text class="lg-bsub" x="24" y="${B.y + 52 + titles.length * 14 + k * 12}">${esc(t)}</text>`; });
+      s += `</g>`;
     });
     edges.forEach((E) => {
       s += `<path id="${id}-e${E.i}" class="lg-edge ${E.kind || "ipc"}" data-e="${E.i}" d="${E.d}" marker-end="url(#${id}-m-${E.kind || "ipc"})"/>`;
@@ -314,7 +326,7 @@
     }
     Object.values(nodes).forEach((n) => {
       const tip = n.tip !== undefined ? n.tip : termTip(n.title) || termTip(n.sub || "");
-      const cls = "lg-node" + (n.hl ? " hl" : "") + (n.soft ? " soft" : "");
+      const cls = `lg-node tn-${n._tone}` + (n.hl ? " hl" : "") + (n.soft ? " soft" : "");
       const tx = n._x + 12, avail = n._w - 22;
       // title: one line at 12px, else one/two lines at 10.5px; subtitle fills the remaining lines
       const big = n.title.length * 6.9 <= avail;
@@ -329,10 +341,17 @@
         <rect class="lg-card" x="${n._x}" y="${n._y}" width="${n._w}" height="${n._h}" rx="9"/>
         ${n.tag ? `<text class="lg-tag" x="${tx}" y="${n._y + 15}">[${esc(n.tag)}]</text>` : ""}${body}</g>`;
     });
+    const placed = []; // label boxes already drawn, so neighbouring labels never overlap
+    const hits = (x, y, w) => placed.some((p) => x < p.x + p.w + 4 && x + w + 4 > p.x && y - 9 < p.y + 2 && y + 2 > p.y - 9);
     edges.forEach((E) => {
       if (!E.label || E.markerX !== undefined) return; // AIDL marker already labels Treble crossings
       let mx, my;
-      if (E.cubic) { mx = (E.cubic[0][0] + E.cubic[3][0]) / 2 + 6; my = (E.cubic[0][1] + E.cubic[3][1]) / 2 + 3; }
+      if (E.cubic) {
+        const w = E.label.length * 5.8;
+        mx = Math.min((E.cubic[0][0] + E.cubic[3][0]) / 2 + 6, 992 - w); my = (E.cubic[0][1] + E.cubic[3][1]) / 2 + 3;
+        for (let k = 0; k < 4 && hits(mx, my, w); k++) my += 12;
+        placed.push({ x: mx, y: my, w });
+      }
       else if (E.side) {
         // vertical run sits in the gutter: label goes just inside it, rotated along the line
         const xr = E.side === "right" ? Math.max(E.a._x + E.a._w, E.b._x + E.b._w) + 16 : Math.min(E.a._x, E.b._x) - 16;
@@ -348,8 +367,10 @@
     });
 
     const kinds = [...new Set(edges.map((E) => E.kind || "ipc"))];
+    const tones = Object.keys(TONE_LABEL).filter((t) => Object.values(nodes).some((n) => n._tone === t));
     host.classList.add("lg-host");
     host.innerHTML = `<svg class="lg-svg" viewBox="0 0 1000 ${H}" role="img" aria-label="${esc(spec.label || "Architecture diagram")}">${s}</svg>
+      <div class="lg-legend lg-tones">${tones.map((t) => `<span class="tn-${t}"><b></b>${TONE_LABEL[t]}</span>`).join("")}</div>
       <div class="lg-legend">${kinds.map((k) => `<span class="${k}"><i></i>${KIND_LABEL[k]}</span>`).join("")}${treble ? `<span class="trb"><i></i>Treble boundary · AIDL crossing</span>` : ""}<span class="hint">Hover or focus a component to trace its connections</span></div>`;
 
     // ---- interaction: highlight direct connections, dim everything else

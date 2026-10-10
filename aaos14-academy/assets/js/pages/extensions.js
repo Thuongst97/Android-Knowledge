@@ -11,7 +11,7 @@
       { key: "fw", tag: "L2", title: ["Android Framework", "& CarService"], sub: ["system_server"] },
       { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "Stable AIDL · VINTF isolation" },
       { key: "vendor", tag: "L4", title: ["Vendor Hardware", "Abstraction"], sub: ["/vendor · /odm"] },
-      { key: "hw", tag: "L5", amber: true, title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · CAN-FD · ECUs"] },
+      { key: "hw", tag: "L5", title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · CAN-FD · ECUs"] },
     ],
     nodes: [
       { id: "aosp", band: "apps", at: [0, 0.19], title: "CarLauncher · SystemUI", sub: "AOSP apps, restyled", tag: "App" },
@@ -66,11 +66,11 @@
 
   /* ------------------------- Plug-in lifecycle sequence ------------------------- */
   const lanes = [
-    { title: "VendorServiceController", sub: "inside CarService" },
-    { title: "CarUserService", sub: "user lifecycle events" },
-    { title: "ActivityManager", sub: "system_server" },
-    { title: "OEM plug-in app", sub: "com.oem.car.telemetry" },
-    { title: "CarService APIs", sub: "Car / managers" },
+    { title: "VendorServiceController", sub: "inside CarService", tone: "fw" },
+    { title: "CarUserService", sub: "user lifecycle events", tone: "fw" },
+    { title: "ActivityManager", sub: "system_server", tone: "fw" },
+    { title: "OEM plug-in app", sub: "com.oem.car.telemetry", tone: "ext" },
+    { title: "CarService APIs", sub: "Car / managers", tone: "app" },
   ];
   const steps = [
     { from: 0, to: 0, svg: "parse config_earlyStartupServices", label: "Read config_earlyStartupServices", title: "Parse the plug-in list", detail: "<p>During CarService initialization, <code>VendorServiceController</code> reads the <code>config_earlyStartupServices</code> string array (possibly overridden by your RRO) and builds one entry per service: component, bind mode, target user and trigger.</p>", code: "com.oem.car.telemetry/.TelemetryService#bind=bind,user=system,trigger=asap", codeLang: "conf", tags: [["CarService", "purple"]] },
