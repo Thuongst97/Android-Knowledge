@@ -27,54 +27,74 @@
           <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Beginner</span><span>📦 AOSP android-14.0.0</span></div>
         </header>
 
-        <section class="doc-section" id="ecosystem" data-title="Three Android ecosystems in the car">
-          <div class="sec-head"><h2><span class="sec-num">1.1</span>Three Android ecosystems in the car</h2></div>
-          <p>“Android in the car” is confusing because <strong>three very different things</strong> share the Android name. The key differences are <em>where the operating system runs</em> and <em>who owns the vehicle hardware</em>.</p>
+        <section class="doc-section" id="ecosystem" data-title="Android Automotive OS at a glance">
+          <div class="sec-head"><h2><span class="sec-num">1.1</span>Android Automotive OS at a glance</h2></div>
+          <p><strong>Android Automotive OS (AAOS)</strong> is a full Android platform that runs <strong>natively on the car's own computer</strong>. Apps are installed on the car, so no phone is needed. Android also becomes part of the vehicle: it can read speed and gear and control climate, seats and power. It does this through two additions to normal Android: <strong>CarService</strong>, which decides who may do what, and the <strong>Vehicle HAL</strong>, which translates requests into the car's own bus signals.</p>
 
-          <div class="grid grid-3 mt">
-            <div class="mode-card glass" style="--accent:var(--amber)">
-              <h4>① Android Auto</h4>
-              <span class="badge amber">Projection Mode</span>
-              <div class="mode-flow">
-                <div>📱 Phone runs the apps</div><div class="arrow">↓ USB / Wi-Fi (video stream + touch)</div>
-                <div>🖥️ Head unit only displays</div><div class="arrow">↓ OEM's own OS</div>
-                <div>🚗 Linux / QNX / RTOS</div>
+          <div class="ao-overview mt">
+            <div class="ao-stack" role="list" aria-label="AAOS stack from apps down to the vehicle buses">
+              <div class="ao-layer tn-app" role="listitem">
+                <span class="ao-tag">L1 · Apps</span>
+                <b>🧩 Apps installed on the car</b>
+                <small>CarLauncher · CarSystemUI · media &amp; maps · OEM apps · Car App Library</small>
               </div>
-              <p class="small">All logic runs on the <strong>phone</strong>. The car screen is a “smart external monitor”. Unplug the phone and it is gone.</p>
-            </div>
-            <div class="mode-card glass" style="--accent:var(--blue)">
-              <h4>② Android Automotive OS</h4>
-              <span class="badge">Standalone OS</span>
-              <div class="mode-flow">
-                <div>🧩 Apps installed on the car</div><div class="arrow">↓ Car API / CarService</div>
-                <div>⚙️ AAOS on the vehicle SoC</div><div class="arrow">↓ VHAL ⇄ MCU</div>
-                <div>🚗 CAN · LIN · Ethernet</div>
+              <div class="ao-link tn-app"><i></i><span>Car API <code>android.car</code> · Binder IPC</span></div>
+              <div class="ao-layer tn-fw" role="listitem">
+                <span class="ao-tag">L2 · Framework</span>
+                <b>⚙️ CarService — the policy brain</b>
+                <small>permissions · vehicle properties · power · audio zones · occupants · users · UX restrictions</small>
               </div>
-              <p class="small">Android <strong>is the car's operating system</strong>. It can read speed and control climate, seats and power. No phone needed.</p>
-            </div>
-            <div class="mode-card glass" style="--accent:var(--green)">
-              <h4>③ AOSP on a phone</h4>
-              <span class="badge green">Handheld</span>
-              <div class="mode-flow">
-                <div>📲 Play Store apps</div><div class="arrow">↓ Android framework</div>
-                <div>🔧 Camera, sensor, radio HALs</div><div class="arrow">↓ Kernel drivers</div>
-                <div>🔋 Mobile SoC + battery</div>
+              <div class="ao-link tn-treble"><i></i><span>Stable AIDL <code>IVehicle</code> · Treble boundary</span></div>
+              <div class="ao-layer tn-hal" role="listitem">
+                <span class="ao-tag">L4 · Vendor HAL</span>
+                <b>🔌 Vehicle HAL (VHAL)</b>
+                <small>Vehicle Properties ⇄ vehicle signals · C++ on /vendor · + Audio Control, EVS HALs</small>
               </div>
-              <p class="small">A personal device: one user, one screen, a simple power cycle. No concept of a “vehicle”.</p>
+              <div class="ao-link tn-hw"><i></i><span>SPI · SocketCAN · Ethernet</span></div>
+              <div class="ao-layer tn-hw" role="listitem">
+                <span class="ao-tag">L5 · Vehicle</span>
+                <b>🚗 MCU &amp; vehicle buses</b>
+                <small>AUTOSAR MCU · CAN-FD · LIN · Automotive Ethernet → HVAC, BCM, ADAS ECUs</small>
+              </div>
             </div>
+
+            <div class="ao-facts glass">
+              <h4>Key facts</h4>
+              <dl>
+                <dt>Runs on</dt><dd>The head-unit SoC, often in its own VM next to the cluster OS</dd>
+                <dt>Phone needed?</dt><dd class="c-green">No — the car is the device</dd>
+                <dt>Vehicle access</dt><dd>Read speed, gear, fuel; control HVAC, seats, windows — <strong>permission-gated</strong></dd>
+                <dt>Built by</dt><dd>The vehicle OEM, on AOSP <code class="nowrap">android-14</code></dd>
+                <dt>UI</dt><dd>Fully OEM-designed: Launcher, SystemUI, RRO themes</dd>
+                <dt>Updates</dt><dd>OEM OTA (A/B) + updatable CarService APEX</dd>
+                <dt>Flavors</dt><dd><em>with GAS</em> (Google Maps, Assistant, Play) or <em>without GAS</em> (OEM store)</dd>
+              </dl>
+            </div>
+          </div>
+
+          <h3>What AAOS adds to Android</h3>
+          <div class="ao-caps">
+            <a class="ao-cap glass" href="architecture.html#property-model"><span>🎛️</span><h4>Vehicle properties</h4><p>Read and set car state through <code>CarPropertyManager</code> → CarService → VHAL.</p></a>
+            <a class="ao-cap glass" href="power.html"><span>🔋</span><h4>Vehicle power cycle</h4><p>Follows the ignition: Garage Mode, Suspend-to-RAM and Hibernation with the MCU.</p></a>
+            <a class="ao-cap glass" href="audio.html"><span>🔊</span><h4>Audio zones</h4><p>Separate mixes, volume groups and audio focus for each seat zone.</p></a>
+            <a class="ao-cap glass" href="displays.html"><span>🖥️</span><h4>Multiple displays</h4><p>Cluster, center, passenger and rear screens mapped to occupant zones.</p></a>
+            <a class="ao-cap glass" href="users.html"><span>👥</span><h4>Concurrent users</h4><p>A headless system user plus one Android user per occupant (MUMD).</p></a>
+            <div class="ao-cap glass"><span>🚦</span><h4>Driving restrictions</h4><p><code>CarUxRestrictionsManager</code> limits what the UI shows while the car is moving.</p></div>
+            <a class="ao-cap glass" href="security.html"><span>🔐</span><h4>Vehicle security</h4><p>Car permissions, SELinux and hardware isolation keep apps off the buses.</p></a>
+            <a class="ao-cap glass" href="extensions.html"><span>🧩</span><h4>OEM customization</h4><p>RROs, plug-in services and OemCarService extend AAOS without forking it.</p></a>
           </div>
 
           <div class="callout analogy">
             <div class="ci">🎭</div>
             <div><span class="ct">Analogy</span>
-              <p><strong>Android Auto</strong> is like bringing your laptop to a meeting room and plugging it into the projector — the projector only displays, your laptop is the brain. <strong>AAOS</strong> is a smart meeting room with a built-in computer that also controls the building's lights, blinds and air conditioning. <strong>Phone AOSP</strong> is your personal laptop — powerful, but it knows nothing about the building.</p>
+              <p>AAOS is the <strong>built-in computer of a smart building</strong>. It runs the screens and apps people use, and it also controls the lights, blinds and air conditioning. Visitors never touch the plant room: every request goes through the <strong>facilities desk</strong> (CarService), which checks their badge. The desk then hands the job to the <strong>technician</strong> who speaks the machines' language (the VHAL).</p>
             </div>
           </div>
 
           <div class="callout note">
             <div class="ci">ℹ️</div>
             <div><span class="ct">Note</span>
-              <p>A car running AAOS <strong>can still</strong> support Android Auto/CarPlay projection as an app. AAOS also comes in two flavors: <em>with GAS</em> (Google Automotive Services: Maps, Assistant, Play Store — requires a Google license, e.g. Volvo, Polestar, GM) and <em>without GAS</em> (the OEM builds its own store and services, common among Chinese OEMs).</p>
+              <p>AAOS is not Android Auto. Android Auto <em>projects</em> a phone's apps onto the car screen, while AAOS <em>is</em> the car's operating system — and it can still offer Android Auto or CarPlay projection as an app. <em>With GAS</em> requires a Google license (e.g. Volvo, Polestar, GM); <em>without GAS</em> the OEM builds its own store and services, common among Chinese OEMs.</p>
             </div>
           </div>
         </section>
