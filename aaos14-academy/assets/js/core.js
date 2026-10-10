@@ -13,7 +13,7 @@
       title: "Foundational Concepts & Ecosystem", short: "Foundations & Ecosystem", icon: "🧭", accent: "#70cff8",
       desc: "Android Auto vs AAOS vs phone AOSP, and the real hardware: SoC, MCU, CAN/LIN, displays.",
       sections: [
-        ["ecosystem", "Three Android ecosystems in the car", "android auto projection aaos standalone"],
+        ["ecosystem", "Android Automotive OS at a glance", "aaos overview standalone carservice vhal gas android auto projection"],
         ["matrix", "Comparison matrix", "compare matrix gas play store"],
         ["deployment", "Real-world deployment architecture", "soc mcu can lin ethernet display hypervisor serializer"],
         ["takeaways", "Key takeaways", "summary"],
