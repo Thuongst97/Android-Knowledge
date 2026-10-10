@@ -1366,3 +1366,93 @@ a.ao-cap:hover h4::after { opacity: 1; }
 @media (max-width: 1100px) { .ao-caps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .ao-overview { grid-template-columns: 1fr; } }
 @media (max-width: 520px) { .ao-caps { grid-template-columns: 1fr; } .ao-facts dl { grid-template-columns: 1fr; gap: 2px; } .ao-facts dd { margin-bottom: 8px; } }
+
+/* ------------------------------------------------ Landing hero illustration (isometric 5-layer stack) */
+:root {
+  --hv-top: #1d212b; --hv-left: #14171e; --hv-right: #0d0f14; --hv-edge: rgba(255, 255, 255, 0.12);
+  --hv-chip-top: #2a2f3b; --hv-chip-left: #1b1e26; --hv-chip-right: #121419;
+  --hv-trace: rgba(200, 205, 214, 0.28);
+  --hv-c1: #70cff8; --hv-c2: #a78bfa; --hv-c3: #f472b6; --hv-c4: #34d399; --hv-c5: #d4af37;
+  --hv-glow: 0.55;
+}
+:root[data-theme="light"] {
+  --hv-top: #f8fafc; --hv-left: #dde3ea; --hv-right: #c6cfda; --hv-edge: rgba(15, 23, 42, 0.16);
+  --hv-chip-top: #3a414f; --hv-chip-left: #2a303b; --hv-chip-right: #1e232c;
+  --hv-trace: rgba(71, 85, 105, 0.35);
+  --hv-c1: #0284c7; --hv-c2: #7c3aed; --hv-c3: #db2777; --hv-c4: #059669; --hv-c5: #b45309;
+  --hv-glow: 0.35;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --hv-top: #f8fafc; --hv-left: #dde3ea; --hv-right: #c6cfda; --hv-edge: rgba(15, 23, 42, 0.16);
+    --hv-chip-top: #3a414f; --hv-chip-left: #2a303b; --hv-chip-right: #1e232c;
+    --hv-trace: rgba(71, 85, 105, 0.35);
+    --hv-c1: #0284c7; --hv-c2: #7c3aed; --hv-c3: #db2777; --hv-c4: #059669; --hv-c5: #b45309;
+    --hv-glow: 0.35;
+  }
+}
+.hero-visual { position: relative; }
+.hero-visual .hero-stack { position: relative; z-index: 1; }
+.hero-visual .hs-layer { padding-right: 41%; justify-content: flex-start; gap: 14px; }
+.hero-visual .hs-n { order: -1; }
+.hero-art {
+  position: absolute; z-index: 2; right: -64px; top: -96px; height: calc(100% + 150px); width: auto;
+  pointer-events: none; overflow: visible; filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.25));
+}
+.hero-art .hv-l1 { --c: var(--hv-c1); } .hero-art .hv-l2 { --c: var(--hv-c2); } .hero-art .hv-l3 { --c: var(--hv-c3); }
+.hero-art .hv-l4 { --c: var(--hv-c4); } .hero-art .hv-l5 { --c: var(--hv-c5); }
+.hero-art polygon { stroke: var(--hv-edge); stroke-width: 0.8; stroke-linejoin: round; }
+.hero-art .hv-slab .f-t, .hero-art .hv-dev .f-t { fill: var(--hv-top); }
+.hero-art .hv-slab .f-l, .hero-art .hv-dev .f-l { fill: var(--hv-left); }
+.hero-art .hv-slab .f-r, .hero-art .hv-dev .f-r { fill: var(--hv-right); }
+.hero-art .hv-rim { fill: none; stroke: var(--c); stroke-width: 1.6; opacity: 0.85; filter: drop-shadow(0 0 3px var(--c)); }
+.hero-art :is(.hv-chip, .hv-node) .f-t { fill: var(--hv-chip-top); }
+.hero-art :is(.hv-chip, .hv-node) .f-l { fill: var(--hv-chip-left); }
+.hero-art :is(.hv-chip, .hv-node) .f-r { fill: var(--hv-chip-right); }
+.hero-art .hv-die .f-t { fill: var(--c); opacity: 0.9; }
+.hero-art .hv-die .f-l, .hero-art .hv-die .f-r { fill: var(--c); opacity: 0.55; }
+.hero-art .hv-conn .f-t, .hero-art .hv-conn .f-l, .hero-art .hv-conn .f-r { fill: var(--c); }
+.hero-art .hv-conn .f-l { opacity: 0.75; } .hero-art .hv-conn .f-r { opacity: 0.55; }
+.hero-art .hv-conn.c2 { --c: var(--hv-c4); } .hero-art .hv-conn.c3 { --c: var(--hv-c1); }
+.hero-art .hv-trace { stroke: var(--hv-trace); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+.hero-art .hv-trace.hv-flow { stroke: var(--c); opacity: 0.9; }
+.hero-art .hv-wire { fill: none; stroke-width: 2; stroke-linecap: round; stroke: var(--hv-c5); }
+.hero-art .hv-wire.w2 { stroke: var(--hv-c4); } .hero-art .hv-wire.w3 { stroke: var(--hv-c1); }
+.hero-art .hv-dot { fill: var(--c); filter: drop-shadow(0 0 4px var(--c)); }
+.hero-art .hv-riser { stroke: var(--hv-trace); stroke-width: 3; stroke-linecap: round; }
+.hero-art .hv-riser.hv-flow { stroke: var(--c); stroke-width: 1.6; }
+.hero-art .hv-flow { stroke-dasharray: 3 7; animation: hv-flow 1.4s linear infinite; }
+@keyframes hv-flow { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .hero-art .hv-flow { animation: none; } }
+/* AVN head-unit screen: always a dark display, like the real thing */
+.hero-art .avn-back { fill: var(--hv-chip-right); }
+.hero-art .avn-bezel { fill: #0b0d12; stroke: var(--hv-edge); stroke-width: 0.8; }
+.hero-art .avn-glass { fill: #111827; }
+.hero-art .avn-map { fill: #1a2333; }
+.hero-art .avn-street { stroke: #2d3a50; stroke-width: 3; fill: none; }
+.hero-art .avn-route { stroke: #70cff8; stroke-width: 3.2; fill: none; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 3px #70cff8); }
+.hero-art .avn-pos { fill: #70cff8; stroke: #fff; stroke-width: 1.5; }
+.hero-art .avn-pin { fill: #f472b6; }
+.hero-art .avn-card { fill: rgba(30, 41, 59, 0.92); stroke: rgba(255, 255, 255, 0.08); stroke-width: 0.6; }
+.hero-art .avn-turn { stroke: #34d399; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.hero-art .avn-art { fill: url(#hv-art); }
+.hero-art .avn-note { stroke: #fff; stroke-width: 2; fill: none; opacity: 0.9; }
+.hero-art .avn-note-h { fill: #fff; opacity: 0.9; }
+.hero-art .avn-bar { fill: rgba(255, 255, 255, 0.18); } .hero-art .avn-bar.on { fill: #70cff8; }
+.hero-art .avn-dock { fill: #0b1220; }
+.hero-art .avn-txt { font: 600 6px var(--font); fill: #e2e8f0; }
+.hero-art .avn-txt.dim { fill: #8a94a6; font-weight: 500; font-size: 5px; }
+.hero-art .avn-txt.big { font-size: 8px; font-weight: 700; }
+.hero-art .avn-txt.temp { font-size: 8px; font-weight: 700; fill: #fbbf24; }
+.hero-art .avn-ico.a1 { fill: #70cff8; } .hero-art .avn-ico.a2 { fill: #34d399; } .hero-art .avn-ico.a3 { fill: #a78bfa; }
+.hero-art .avn-ico.a4 { fill: #f472b6; } .hero-art .avn-ico.a5 { fill: #fbbf24; }
+@media (max-width: 1100px) {
+  .hero-visual { max-width: 640px; margin-top: 80px; }
+  .hero-art { right: 0; }
+}
+@media (max-width: 640px) {
+  .hero-visual { margin-top: 0; }
+  .hero-visual { display: flex; flex-direction: column; }
+  .hero-visual .hs-layer { padding-right: 18px; }
+  .hero-art { position: static; order: -1; width: min(300px, 86%); height: auto; margin: 0 auto 8px; }
+}
