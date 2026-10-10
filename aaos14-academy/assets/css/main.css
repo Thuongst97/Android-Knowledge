@@ -72,11 +72,6 @@ body {
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
-/* dark theme: faint circuit traces at the page edges (img/circuit-bg.svg); none in light */
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: var(--bg-deco) center / cover no-repeat;
-}
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 img, svg { max-width: 100%; }
@@ -785,7 +780,6 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   --chip-bg: #1c1e23;
   --line: #363a43;
   --line-2: #4a505a;
-  --bg-deco: url("../img/circuit-bg.svg");
   --formula-bg: var(--code-bg);
   --seq-future: 0.1;
   --seq-done: 0.5;
@@ -804,7 +798,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
     --red: #dc2626; --red-dim: rgba(220, 38, 38, 0.09);
     --purple-text: #7c3aed; --code-inline: #0369a1; --code-inline-bg: rgba(2, 132, 199, 0.08); --scroll: #cbd5e1;
     --header-bg: rgba(255, 255, 255, 0.85); --sidebar-bg: rgba(255, 255, 255, 0.65); --sechead: linear-gradient(180deg, rgba(245, 247, 251, 0.96) 70%, transparent);
-    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text); --bg-deco: none;
+    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text);
     --thead-bg: #f1f5f9; --footer-bg: rgba(255, 255, 255, 0.75); --alt-bg: rgba(226, 232, 240, 0.45);
     --panel: #ffffff; --panel-2: #f1f5f9; --panel-hi: #e0f2fe; --panel-soft: rgba(248, 250, 252, 0.85);
     --chip-bg: #f1f5f9; --line: #cbd5e1; --line-2: #94a3b8; --formula-bg: #ffffff; --seq-future: 0.22; --seq-done: 0.75; --bg-spotlight: radial-gradient(1100px 600px at 85% -10%, rgba(2, 132, 199, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 30%, rgba(124, 58, 237, 0.05), transparent 60%); --gold: #a8841f; --grad-mid: #475569; --text-2: #334155;
@@ -824,7 +818,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   --red: #dc2626; --red-dim: rgba(220, 38, 38, 0.09);
   --purple-text: #7c3aed; --code-inline: #0369a1; --code-inline-bg: rgba(2, 132, 199, 0.08); --scroll: #cbd5e1;
   --header-bg: rgba(255, 255, 255, 0.85); --sidebar-bg: rgba(255, 255, 255, 0.65); --sechead: linear-gradient(180deg, rgba(245, 247, 251, 0.96) 70%, transparent);
-    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text); --bg-deco: none;
+    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text);
   --thead-bg: #f1f5f9; --footer-bg: rgba(255, 255, 255, 0.75); --alt-bg: rgba(226, 232, 240, 0.45);
   --panel: #ffffff; --panel-2: #f1f5f9; --panel-hi: #e0f2fe; --panel-soft: rgba(248, 250, 252, 0.85);
   --chip-bg: #f1f5f9; --line: #cbd5e1; --line-2: #94a3b8; --formula-bg: #ffffff; --seq-future: 0.22; --seq-done: 0.75; --bg-spotlight: radial-gradient(1100px 600px at 85% -10%, rgba(2, 132, 199, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 30%, rgba(124, 58, 237, 0.05), transparent 60%); --gold: #a8841f; --grad-mid: #475569; --text-2: #334155;
