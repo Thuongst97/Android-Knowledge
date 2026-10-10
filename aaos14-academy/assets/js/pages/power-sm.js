@@ -3,7 +3,7 @@
   "use strict";
   const { $, $$, esc, Diagram: D } = window.AAOS;
   const W = 196, H = 60;
-  const C = { slate: "#8a8f98", emerald: "#34d399", cyan: "#70cff8", amber: "#fbbf24", gold: "#d4af37", violet: "#a78bfa", red: "#f87171" };
+  const C = { slate: "var(--dg-muted)", emerald: "var(--dg-cyan)", cyan: "var(--dg-cyan)", amber: "var(--dg-amber)", gold: "var(--dg-amber)", violet: "var(--dg-muted)", red: "var(--dg-muted)" };
 
   const NODES = {
     WAIT: { x: 190, y: 255, label: "WAIT_FOR_VHAL", sub: "booted · awaiting MCU", c: C.slate },

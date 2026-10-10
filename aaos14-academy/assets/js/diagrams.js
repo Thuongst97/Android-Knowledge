@@ -156,8 +156,238 @@
     },
   };
 
+  /* ---------------------------------------------------- Layered architecture renderer
+     spec = {
+       id, label, nodeH?,
+       bands: [{ key, tag:"L1", title:["Applications &", "UI Framework"], sub:["/system_ext", "/product"], treble?:true, amber?:true }],
+       nodes: [{ id, band, row?, rows?, at?:[x0,x1] (fractions of the lane), span?, title, sub?, tag?:"App", tip?, hl?, soft? }],
+       edges: [{ from, to, kind:"ipc"|"call"|"hw"|"opt", label?, side?:"right"|"left", marker?:"AIDL" }],
+     } */
+  const LG = { X0: 186, X1: 958, PAD: 16, ROW_GAP: 10, BAND_GAP: 10, TREBLE_H: 46 };
+  const KIND_LABEL = { ipc: "Binder IPC / AIDL", call: "In-process call", hw: "Hardware link / bus", opt: "Optional · plug-in · config" };
+  /** Wrap text into ≤ maxLines lines of ≤ maxChars, breaking after spaces, "_" or at camelCase humps. */
+  function wrap(str, maxChars, maxLines) {
+    const lines = [];
+    let rest = str.trim();
+    while (rest && lines.length < maxLines) {
+      if (rest.length <= maxChars) { lines.push(rest); rest = ""; break; }
+      if (lines.length === maxLines - 1) { lines.push(rest.slice(0, maxChars - 1).trimEnd() + "…"); rest = ""; break; }
+      let cut = -1;
+      for (let i = Math.min(maxChars, rest.length - 1); i > maxChars * 0.35; i--) {
+        const a = rest[i - 1], b = rest[i];
+        if (a === " " || a === "_" || (/[a-z0-9]/.test(a) && /[A-Z]/.test(b))) { cut = i; break; }
+      }
+      if (cut < 0) cut = maxChars;
+      lines.push(rest.slice(0, cut).trimEnd());
+      rest = rest.slice(cut).replace(/^[\s·]+/, "");
+    }
+    return lines;
+  }
+
+  D.layered = function (host, spec) {
+    const id = spec.id || "lg" + (++uid);
+    const NODE_H = spec.nodeH || 60;
+    const CW = LG.X1 - LG.X0;
+    const bands = {}, nodes = {};
+    let y = 8;
+    spec.bands.forEach((b) => {
+      const mine = spec.nodes.filter((n) => n.band === b.key);
+      const rows = b.treble ? 0 : Math.max(1, ...mine.map((n) => (n.row || 0) + (n.rows || 1)));
+      const h = b.treble ? LG.TREBLE_H : Math.max(b.minH || 0, LG.PAD * 2 + rows * NODE_H + (rows - 1) * LG.ROW_GAP);
+      bands[b.key] = { ...b, y, h, rows };
+      y += h + LG.BAND_GAP;
+    });
+    const H = y - LG.BAND_GAP + 8;
+
+    // node geometry
+    spec.bands.forEach((b) => {
+      const B = bands[b.key];
+      const byRow = {};
+      spec.nodes.filter((n) => n.band === b.key).forEach((n) => (byRow[n.row || 0] = byRow[n.row || 0] || []).push(n));
+      Object.entries(byRow).forEach(([r, list]) => {
+        if (list.some((n) => !n.at)) {
+          const total = list.reduce((a, n) => a + (n.span || 1), 0);
+          const unit = (CW - 12 * (list.length - 1)) / total;
+          let cx = LG.X0;
+          list.forEach((n) => { n._x = cx; n._w = unit * (n.span || 1); cx += n._w + 12; });
+        } else list.forEach((n) => { n._x = LG.X0 + n.at[0] * CW; n._w = (n.at[1] - n.at[0]) * CW; });
+        list.forEach((n) => {
+          const rr = n.rows || 1;
+          n._y = B.y + LG.PAD + +r * (NODE_H + LG.ROW_GAP);
+          n._h = NODE_H * rr + LG.ROW_GAP * (rr - 1);
+          nodes[n.id] = n;
+        });
+      });
+    });
+
+    // edge endpoints (attachment points spread along each side)
+    const ends = [];
+    const edges = spec.edges.filter((e) => nodes[e.from] && nodes[e.to]).map((e, i) => {
+      const a = nodes[e.from], b = nodes[e.to];
+      const aB = a._y + a._h, bB = b._y + b._h;
+      let sa, sb;
+      if (e.side) { sa = e.side; sb = e.side; }
+      else if (b._y >= aB - 1) { sa = "bottom"; sb = "top"; }
+      else if (bB <= a._y + 1) { sa = "top"; sb = "bottom"; }
+      else if (b._x >= a._x) { sa = "right"; sb = "left"; }
+      else { sa = "left"; sb = "right"; }
+      const E = { ...e, i, a, b, sa, sb };
+      ends.push({ E, node: a, side: sa, other: b, which: "s" }, { E, node: b, side: sb, other: a, which: "t" });
+      return E;
+    });
+    const groups = {};
+    ends.forEach((p) => (groups[p.node.id + ":" + p.side] = groups[p.node.id + ":" + p.side] || []).push(p));
+    Object.values(groups).forEach((list) => {
+      const vert = list[0].side === "top" || list[0].side === "bottom";
+      list.sort((p, q) => (vert ? p.other._x + p.other._w / 2 - (q.other._x + q.other._w / 2) : p.other._y - q.other._y));
+      list.forEach((p, k) => {
+        const n = p.node, f = (k + 1) / (list.length + 1);
+        p.E[p.which] = p.side === "top" ? [n._x + n._w * f, n._y] : p.side === "bottom" ? [n._x + n._w * f, n._y + n._h]
+          : p.side === "left" ? [n._x, n._y + n._h * f] : [n._x + n._w, n._y + n._h * f];
+      });
+    });
+    edges.forEach((E) => {
+      const [sx, sy] = E.s, [ex, ey] = E.t;
+      if (E.side) {
+        const xr = E.side === "right" ? Math.max(E.a._x + E.a._w, E.b._x + E.b._w) + 16 : Math.min(E.a._x, E.b._x) - 16;
+        E.d = `M${sx},${sy} H${xr} V${ey} H${ex}`;
+      } else if (E.sa === "bottom" || E.sa === "top") {
+        const my = (sy + ey) / 2;
+        E.d = `M${sx},${sy} C${sx},${my} ${ex},${my} ${ex},${ey}`;
+        E.cubic = [[sx, sy], [sx, my], [ex, my], [ex, ey]];
+      } else {
+        const mx = (sx + ex) / 2;
+        E.d = `M${sx},${sy} C${mx},${sy} ${mx},${ey} ${ex},${ey}`;
+      }
+    });
+
+    // ---- draw
+    let s = `<defs>
+      <linearGradient id="${id}-band" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="lg-sa"/><stop offset="1" class="lg-sb"/></linearGradient>
+      <linearGradient id="${id}-treble" gradientUnits="userSpaceOnUse" x1="${LG.X0 - 10}" y1="0" x2="${LG.X1 + 20}" y2="0">
+        <stop offset="0" class="lg-t0"/><stop offset="0.12" class="lg-t1"/>
+        <stop offset="0.5" class="lg-t2"/><stop offset="0.88" class="lg-t1"/><stop offset="1" class="lg-t0"/></linearGradient>
+      ${["ipc", "call", "hw", "opt"].map((k) => `<marker id="${id}-m-${k}" class="lg-mk ${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,1 L10,5 L0,9 z"/></marker>`).join("")}
+    </defs>`;
+    spec.bands.forEach((b) => {
+      const B = bands[b.key];
+      const titles = [].concat(b.title || []), subs = [].concat(b.sub || []);
+      if (B.treble) {
+        const ty = B.y + B.h / 2;
+        s += `<g class="lg-treble" data-tip="${esc(b.tip || "Treble boundary — only stable, versioned interfaces (Stable AIDL declared in VINTF) may cross between /system and /vendor")}">
+          <line class="lg-treble-glow" x1="${LG.X0 - 10}" y1="${ty}" x2="${LG.X1 + 20}" y2="${ty}" stroke="url(#${id}-treble)"/>
+          <line class="lg-treble-core" x1="${LG.X0 - 10}" y1="${ty}" x2="${LG.X1 + 20}" y2="${ty}" stroke="url(#${id}-treble)"/>
+          <g class="lg-badge amber"><rect x="24" y="${ty - 18}" width="34" height="17" rx="5"/><text x="41" y="${ty - 6}" text-anchor="middle">${esc(b.tag || "L3")}</text></g>
+          <text class="lg-btitle amber" x="64" y="${ty - 5}">${esc(titles[0] || "Treble boundary")}</text>
+          <text class="lg-bsub" x="24" y="${ty + 13}">${esc(subs[0] || "Stable AIDL · VINTF")}</text></g>`;
+        B.ty = ty;
+        return;
+      }
+      s += `<rect class="lg-band" x="12" y="${B.y}" width="976" height="${B.h}" rx="12" fill="url(#${id}-band)"/>`;
+      s += `<line class="lg-divider" x1="${LG.X0 - 14}" y1="${B.y + 12}" x2="${LG.X0 - 14}" y2="${B.y + B.h - 12}"/>`;
+      s += `<g class="lg-badge${b.amber ? " amber" : ""}"><rect x="24" y="${B.y + 14}" width="34" height="17" rx="5"/><text x="41" y="${B.y + 26}" text-anchor="middle">${esc(b.tag || "")}</text></g>`;
+      titles.forEach((t, k) => { s += `<text class="lg-btitle" x="24" y="${B.y + 48 + k * 14}">${esc(t)}</text>`; });
+      subs.forEach((t, k) => { s += `<text class="lg-bsub" x="24" y="${B.y + 52 + titles.length * 14 + k * 12}">${esc(t)}</text>`; });
+    });
+    edges.forEach((E) => {
+      s += `<path id="${id}-e${E.i}" class="lg-edge ${E.kind || "ipc"}" data-e="${E.i}" d="${E.d}" marker-end="url(#${id}-m-${E.kind || "ipc"})"/>`;
+    });
+    // AIDL markers where edges cross the Treble line
+    const treble = Object.values(bands).find((B) => B.treble);
+    if (treble) {
+      edges.forEach((E) => {
+        if (!E.cubic) return;
+        const [p0, p1, p2, p3] = E.cubic;
+        if (!((p0[1] - treble.ty) * (p3[1] - treble.ty) < 0)) return;
+        let best = null;
+        for (let t = 0; t <= 1.0001; t += 0.01) {
+          const u = 1 - t;
+          const yy = u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1];
+          const xx = u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0];
+          if (!best || Math.abs(yy - treble.ty) < best.dy) best = { dy: Math.abs(yy - treble.ty), x: xx };
+        }
+        const m = E.marker || "AIDL";
+        const mw = m.length * 6 + 12;
+        E.markerX = best.x;
+        s += `<g class="lg-aidl" data-e="${E.i}" data-tip="${esc(`${m} — ${E.label || "Stable AIDL call across the Treble boundary"}`)}"><rect x="${best.x - mw / 2}" y="${treble.ty - 8}" width="${mw}" height="16" rx="4"/><text x="${best.x}" y="${treble.ty + 3.5}" text-anchor="middle">${esc(m)}</text></g>`;
+      });
+    }
+    Object.values(nodes).forEach((n) => {
+      const tip = n.tip !== undefined ? n.tip : termTip(n.title) || termTip(n.sub || "");
+      const cls = "lg-node" + (n.hl ? " hl" : "") + (n.soft ? " soft" : "");
+      const tx = n._x + 12, avail = n._w - 22;
+      // title: one line at 12px, else one/two lines at 10.5px; subtitle fills the remaining lines
+      const big = n.title.length * 6.9 <= avail;
+      const tLines = big ? [n.title] : wrap(n.title, Math.floor(avail / 5.95), 2);
+      const extraRows = Math.max(0, Math.round((n._h - NODE_H) / (NODE_H + LG.ROW_GAP))) * 3;
+      const sLines = n.sub ? wrap(n.sub, Math.floor(avail / 5.75), (tLines.length > 1 ? 1 : 2) + extraRows) : [];
+      let ty = n._y + (n.tag ? 30 : 22);
+      let body = tLines.map((l, k) => `<text class="lg-title${big ? "" : " sm"}" x="${tx}" y="${ty + k * 12.5}">${esc(l)}</text>`).join("");
+      ty += (tLines.length - 1) * 12.5 + 13;
+      body += sLines.map((l, k) => `<text class="lg-sub" x="${tx}" y="${ty + k * 11.5}">${esc(l)}</text>`).join("");
+      s += `<g class="${cls}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(n.title + (n.sub ? ", " + n.sub : ""))}"${tip ? ` data-tip="${esc(tip)}"` : ""}>
+        <rect class="lg-card" x="${n._x}" y="${n._y}" width="${n._w}" height="${n._h}" rx="9"/>
+        ${n.tag ? `<text class="lg-tag" x="${tx}" y="${n._y + 15}">[${esc(n.tag)}]</text>` : ""}${body}</g>`;
+    });
+    edges.forEach((E) => {
+      if (!E.label || E.markerX !== undefined) return; // AIDL marker already labels Treble crossings
+      let mx, my;
+      if (E.cubic) { mx = (E.cubic[0][0] + E.cubic[3][0]) / 2 + 6; my = (E.cubic[0][1] + E.cubic[3][1]) / 2 + 3; }
+      else if (E.side) {
+        // vertical run sits in the gutter: label goes just inside it, rotated along the line
+        const xr = E.side === "right" ? Math.max(E.a._x + E.a._w, E.b._x + E.b._w) + 16 : Math.min(E.a._x, E.b._x) - 16;
+        const yy = (E.s[1] + E.t[1]) / 2;
+        s += `<text class="lg-elabel" data-e="${E.i}" x="${xr + (E.side === "right" ? 10 : -4)}" y="${yy}" text-anchor="middle" transform="rotate(-90 ${xr + (E.side === "right" ? 10 : -4)} ${yy})">${esc(E.label)}</text>`;
+        return;
+      }
+      else {
+        if (E.label.length * 5.8 > Math.abs(E.t[0] - E.s[0]) - 8) return; // no room between the cards
+        mx = (E.s[0] + E.t[0]) / 2; my = (E.s[1] + E.t[1]) / 2 - 6;
+      }
+      s += `<text class="lg-elabel" data-e="${E.i}" x="${mx}" y="${my}"${!E.cubic && !E.side ? ' text-anchor="middle"' : ""}>${esc(E.label)}</text>`;
+    });
+
+    const kinds = [...new Set(edges.map((E) => E.kind || "ipc"))];
+    host.classList.add("lg-host");
+    host.innerHTML = `<svg class="lg-svg" viewBox="0 0 1000 ${H}" role="img" aria-label="${esc(spec.label || "Architecture diagram")}">${s}</svg>
+      <div class="lg-legend">${kinds.map((k) => `<span class="${k}"><i></i>${KIND_LABEL[k]}</span>`).join("")}${treble ? `<span class="trb"><i></i>Treble boundary · AIDL crossing</span>` : ""}<span class="hint">Hover or focus a component to trace its connections</span></div>`;
+
+    // ---- interaction: highlight direct connections, dim everything else
+    const svg = host.querySelector("svg");
+    const adj = {};
+    edges.forEach((E) => { (adj[E.from] = adj[E.from] || []).push(E); (adj[E.to] = adj[E.to] || []).push(E); });
+    let current = null;
+    const clear = () => {
+      current = null;
+      svg.classList.remove("lg-focus");
+      svg.querySelectorAll(".lit").forEach((el) => el.classList.remove("lit", "focus"));
+      svg.querySelectorAll(".hd-pulse.live").forEach((p) => p.remove());
+    };
+    const focus = (nid) => {
+      if (current === nid) return;
+      clear();
+      current = nid;
+      svg.classList.add("lg-focus");
+      const lit = new Set([nid]);
+      (adj[nid] || []).forEach((E) => {
+        lit.add(E.from); lit.add(E.to);
+        svg.querySelectorAll(`[data-e="${E.i}"]`).forEach((el) => el.classList.add("lit"));
+        D.attachPulse(svg.querySelector(`#${id}-e${E.i}`), E.kind === "hw" ? "hw" : "hl", 1.5);
+      });
+      lit.forEach((k) => { const g = svg.querySelector(`.lg-node[data-id="${k}"]`); if (g) g.classList.add("lit"); });
+      const self = svg.querySelector(`.lg-node[data-id="${nid}"]`);
+      if (self) self.classList.add("focus");
+    };
+    svg.addEventListener("pointerover", (e) => { const g = e.target.closest(".lg-node"); if (g) focus(g.dataset.id); else if (current) clear(); });
+    svg.addEventListener("pointerleave", clear);
+    svg.addEventListener("focusin", (e) => { const g = e.target.closest(".lg-node"); if (g) focus(g.dataset.id); });
+    svg.addEventListener("focusout", clear);
+    return { focus, clear };
+  };
+
   /* ---------------------------------------------------- Cabin topology */
-  const ZONE_COLORS = ["#70cff8", "#34d399", "#fbbf24", "#a78bfa"];
+  // Muted zone palette: ice cyan, amber, steel, sand — distinct but restrained
+  const ZONE_COLORS = ["var(--zone-0)", "var(--zone-1)", "var(--zone-2)", "var(--zone-3)"];
   const SEATS = [
     { z: 0, x: 92, y: 150, label: "Driver" }, { z: 1, x: 248, y: 150, label: "Passenger" },
     { z: 2, x: 92, y: 334, label: "Rear-left" }, { z: 3, x: 248, y: 334, label: "Rear-right" },

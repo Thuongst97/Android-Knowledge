@@ -1,68 +1,81 @@
 (function () {
   "use strict";
   const { $, $$, esc, Diagram: D, SequenceDiagram } = window.AAOS;
-  const BLUE = "#70cff8", PURPLE = "#a78bfa", GREEN = "#34d399", AMBER = "#fbbf24", GRAY = "#94a3b8";
+  const BLUE = "#70cff8", PURPLE = "#a78bfa", GREEN = "#34d399", AMBER = "#f59e0b", GRAY = "#94a3b8";
 
   /* ------------------------- User model diagram ------------------------- */
-  (function () {
-    let s = D.defs("um");
-    s += D.box(20, 14, 960, 96, { c: PURPLE, title: "User 0 — headless system user (always running, never on a display)" });
-    s += D.chips(32, 44, 936, ["system_server services", "CarService", "VHAL client", "carpowerpolicyd", "user=system plug-in services", "telemetry", "no launcher · no personal data"]).svg;
-    s += D.note(32, 98, "Survives every user switch — the vehicle never “logs out”");
+  D.layered($("#hd-users"), {
+    id: "umodel", label: "Android users in AAOS with the headless system user",
+    bands: [
+      { key: "u0", tag: "U0", title: ["Headless", "system user"], sub: ["user 0 · always running", "never on a display"] },
+      { key: "users", tag: "U10+", title: ["Personal users"], sub: ["one per occupant", "/data/user/<id>"] },
+      { key: "out", tag: "IO", amber: true, title: ["Displays & audio"], sub: ["per occupant zone"] },
+    ],
+    nodes: [
+      { id: "svc", band: "u0", at: [0, 0.3], title: "system services · CarService", sub: "vehicle-wide policy, survives every switch", tag: "Svc" },
+      { id: "cus", band: "u0", at: [0.35, 0.65], title: "CarUserService", sub: "create · switch · start · remove", tag: "Svc", hl: true },
+      { id: "sysplug", band: "u0", at: [0.7, 1], title: "user=system plug-ins", sub: "telemetry · connectivity", tag: "Plug-in" },
 
-    const users = [
-      { t: "User 10 — Alex (driver)", sub: "CURRENT / foreground user", c: BLUE, chips: ["IVI display", "Cluster", "HUD", "/data/user/10"] },
-      { t: "User 11 — Bea (passenger)", sub: "visible background user (MUMD)", c: GREEN, chips: ["Passenger display", "Audio zone 1", "/data/user/11"] },
-      { t: "User 12 — Kid (rear)", sub: "visible background user (MUMD)", c: AMBER, chips: ["Rear-left RSE", "Audio zone 2", "/data/user/12"] },
-      { t: "Guest", sub: "ephemeral — wiped on exit", c: GRAY, chips: ["Valet / rental", "restricted", "auto-removed"] },
-    ];
-    const w = (960 - 30) / 4;
-    users.forEach((u, i) => {
-      const x = 20 + i * (w + 10);
-      s += D.box(x, 140, w, 126, { c: u.c, title: u.t, sub: u.sub, soft: i === 3 });
-      s += D.chips(x + 12, 184, w - 24, u.chips).svg;
-      s += D.arrow(`M${x + w / 2},139 V111`, "", "um");
-    });
-    s += D.note(500, 290, "Each user = separate storage, accounts, app instances (UID = userId × 100000 + appId)", "middle");
-    $("#hd-users").innerHTML = D.svg(1000, 300, s, "Android users in AAOS with headless system user");
-  })();
+      { id: "u10", band: "users", title: "User 10 — Alex", sub: "CURRENT · foreground", tag: "Driver", hl: true },
+      { id: "u11", band: "users", title: "User 11 — Bea", sub: "visible background (MUMD)", tag: "Passenger" },
+      { id: "u12", band: "users", title: "User 12 — Kid", sub: "visible background (MUMD)", tag: "Rear" },
+      { id: "guest", band: "users", title: "Guest", sub: "ephemeral · wiped on exit", tag: "Guest", soft: true },
+
+      { id: "d-drv", band: "out", title: "IVI · cluster · HUD", sub: "audio zone 0", tag: "Zone 0" },
+      { id: "d-pax", band: "out", title: "Passenger display", sub: "audio zone 1", tag: "Zone 1" },
+      { id: "d-rse", band: "out", title: "Rear-left RSE", sub: "audio zone 2", tag: "Zone 2" },
+      { id: "d-val", band: "out", title: "Driver display", sub: "valet / rental mode", tag: "Zone 0", soft: true },
+    ],
+    edges: [
+      { from: "cus", to: "u10", kind: "ipc", label: "switch" }, { from: "cus", to: "u11", kind: "ipc", label: "start on display" },
+      { from: "cus", to: "u12", kind: "ipc" }, { from: "cus", to: "guest", kind: "opt" },
+      { from: "u10", to: "d-drv", kind: "call" }, { from: "u11", to: "d-pax", kind: "call" },
+      { from: "u12", to: "d-rse", kind: "call" }, { from: "guest", to: "d-val", kind: "opt" },
+    ],
+  });
 
   /* ------------------------- Architecture diagram ------------------------- */
-  (function () {
-    let s = D.defs("ua");
-    s += D.row(20, 14, 960, 48, [
-      { title: "Settings · Profiles", sub: "add / switch / remove", c: BLUE },
-      { title: "OEM profile picker", sub: "welcome screen", c: BLUE },
-      { title: "Passenger login", sub: "MUMD start on display", c: BLUE },
-      { title: "Plug-in services", sub: "lifecycle listeners", c: GREEN },
-    ]);
-    s += D.box(20, 80, 960, 34, { c: PURPLE, title: "CarUserManager (system API) — createUser · switchUser · removeUser · startUser · addListener", center: true, titleY: 22 });
-    s += D.arrow("M500,114 V139", "ipc", "ua");
+  D.layered($("#hd-user-arch"), {
+    id: "uarch", label: "User management architecture in AAOS",
+    bands: [
+      { key: "apps", tag: "L1", title: ["Applications &", "UI Framework"], sub: ["/system_ext · /product"] },
+      { key: "fw", tag: "L2", title: ["Android Framework", "& CarService"], sub: ["system_server"] },
+      { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "Stable AIDL · VINTF isolation" },
+      { key: "vendor", tag: "L4", title: ["Vendor Hardware", "Abstraction"], sub: ["/vendor"] },
+      { key: "hw", tag: "L5", amber: true, title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · ECUs"] },
+    ],
+    nodes: [
+      { id: "settings", band: "apps", title: "Settings · Profiles", sub: "add / switch / remove", tag: "App" },
+      { id: "picker", band: "apps", title: "Profile picker", sub: "welcome screen", tag: "App" },
+      { id: "pax", band: "apps", title: "Passenger login", sub: "start user on display", tag: "App" },
+      { id: "plug", band: "apps", title: "Profile-sync plug-in", sub: "user=foreground", tag: "Plug-in", tip: "Profile-sync plug-in — a user=foreground early-startup service that CarService re-binds for each new driver" },
+      { id: "cum", band: "apps", row: 1, at: [0, 0.74], title: "CarUserManager", sub: "createUser · switchUser · removeUser · startUser · addListener", tag: "API" },
 
-    s += D.box(20, 140, 470, 120, { c: PURPLE, title: "CarService — CarUserService", sub: "policy · orchestration · lifecycle fan-out" });
-    s += D.chips(32, 186, 446, ["request validation", "OEM policy (e.g. not while driving)", "UserHalService", "InitialUserSetter", "lifecycle event dispatch", "VendorServiceController re-binds"]).svg;
-    s += D.box(510, 140, 470, 120, { c: BLUE, title: "system_server", sub: "the framework really manages users" });
-    s += D.chips(522, 186, 446, ["UserManagerService: create / remove / types / restrictions", "ActivityManager: start / switch / stop / unlock", "Storage: /data/user/<id> + CE keys"]).svg;
-    s += D.arrow("M490,200 H509", "ipc", "ua");
+      { id: "cus", band: "fw", at: [0, 0.48], title: "CarUserService", sub: "validation · OEM policy · lifecycle fan-out", tag: "Svc", hl: true },
+      { id: "ss", band: "fw", at: [0.52, 1], title: "UserManagerService · ActivityManager", sub: "create · start · switch · unlock (system_server)", tag: "Svc" },
 
-    s += `<line class="hd-line" x1="20" y1="276" x2="980" y2="276"/>` + D.note(980, 272, "Treble boundary", "end");
-    s += D.box(20, 288, 960, 64, { c: GREEN, title: "Vehicle HAL — User HAL properties" });
-    s += D.chips(32, 318, 936, ["INITIAL_USER_INFO", "SWITCH_USER", "CREATE_USER", "REMOVE_USER", "USER_IDENTIFICATION_ASSOCIATION", "+ OEM vendor profile properties"]).svg;
-    s += D.arrow("M255,260 V287", "ipc", "ua");
+      { id: "uhal", band: "vendor", at: [0, 0.48], title: "Vehicle HAL — User HAL", sub: "INITIAL_USER_INFO · SWITCH_USER · CREATE/REMOVE_USER", tag: "HAL", hl: true },
+      { id: "assoc", band: "vendor", at: [0.52, 1], title: "USER_IDENTIFICATION_ASSOCIATION", sub: "key fob · phone key ↔ user", tag: "HAL" },
 
-    s += D.box(20, 370, 960, 40, { c: GRAY, title: "MCU / body domain — owns profileId ↔ userId ↔ key fob mapping, gates actuators on vehicle state", center: true, titleY: 25 });
-    s += D.arrow("M500,352 V369", "", "ua");
-    s += D.row(20, 428, 960, 50, [
-      { title: "Seat & mirror ECU", sub: "memory slots", c: AMBER },
-      { title: "Cluster VM", sub: "layout · theme · units", c: AMBER },
-      { title: "HVAC ECU", sub: "preferred climate", c: AMBER },
-      { title: "Body / ambient", sub: "light scenes", c: AMBER },
-      { title: "HUD", sub: "brightness · content", c: AMBER },
-      { title: "Telematics", sub: "cloud profile", c: AMBER },
-    ]);
-    s += D.arrow("M500,410 V427", "", "ua") + D.note(510, 422, "active profile broadcast (CAN / SOME-IP)");
-    $("#hd-user-arch").innerHTML = D.svg(1000, 490, s, "User management architecture in AAOS");
-  })();
+      { id: "mcu", band: "hw", at: [0, 1], title: "MCU / body domain — owns profileId ↔ userId ↔ key fob", sub: "gates actuators on vehicle state · broadcasts the active profile", tag: "MCU" },
+      { id: "seat", band: "hw", row: 1, title: "Seat & mirrors", sub: "memory slots", tag: "ECU" },
+      { id: "clus", band: "hw", row: 1, title: "Cluster VM", sub: "layout · units", tag: "ECU" },
+      { id: "hvac", band: "hw", row: 1, title: "HVAC", sub: "preferred climate", tag: "ECU" },
+      { id: "hud", band: "hw", row: 1, title: "HUD · ambient", sub: "brightness · scene", tag: "ECU" },
+      { id: "tcu", band: "hw", row: 1, title: "Telematics", sub: "cloud profile", tag: "ECU" },
+    ],
+    edges: [
+      { from: "settings", to: "cum", kind: "call" }, { from: "picker", to: "cum", kind: "call" }, { from: "pax", to: "cum", kind: "call" },
+      { from: "cum", to: "cus", kind: "ipc", label: "Binder" },
+      { from: "cus", to: "ss", kind: "ipc", label: "switch / start user" },
+      { from: "cus", to: "uhal", kind: "ipc", label: "SWITCH_USER", marker: "AIDL" },
+      { from: "cus", to: "assoc", kind: "ipc", label: "associate key fob", marker: "AIDL" },
+      { from: "uhal", to: "mcu", kind: "hw", label: "profile request / response" },
+      { from: "mcu", to: "seat", kind: "hw" }, { from: "mcu", to: "clus", kind: "hw" }, { from: "mcu", to: "hvac", kind: "hw" },
+      { from: "mcu", to: "hud", kind: "hw" }, { from: "mcu", to: "tcu", kind: "hw" },
+    ],
+  });
+
 
   /* ------------------------- Switch sequence ------------------------- */
   const lanes = [
@@ -95,7 +108,7 @@
   /* ------------------------- Profile apply widget ------------------------- */
   const PROFILES = {
     Alex: { user: 10, profile: 1, color: BLUE, seat: "Slot 1 · tall driver, seat back", mirrors: "Slot 1", cluster: "Sport layout · km/h · dark", hvac: "20.0 °C · auto", ambient: "Ice blue", hud: "Speed + navigation", media: "Alex's Spotify account" },
-    Bea: { user: 11, profile: 2, color: GREEN, seat: "Slot 2 · seat forward, higher", mirrors: "Slot 2", cluster: "Classic layout · mph · light", hvac: "21.5 °C · seat heat 2", ambient: "Warm amber", hud: "Speed only", media: "Bea's podcasts" },
+    Bea: { user: 11, profile: 2, color: AMBER, seat: "Slot 2 · seat forward, higher", mirrors: "Slot 2", cluster: "Classic layout · mph · light", hvac: "21.5 °C · seat heat 2", ambient: "Warm amber", hud: "Speed only", media: "Bea's podcasts" },
     Guest: { user: 12, profile: 0, color: GRAY, seat: "No memory recall", mirrors: "No change", cluster: "Default layout", hvac: "Vehicle default", ambient: "Off", hud: "Default", media: "Empty, nothing saved" },
   };
   const ROWS = [

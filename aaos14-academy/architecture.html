@@ -29,35 +29,33 @@
 
         <section class="doc-section" id="diagrams" data-title="High-level architecture diagrams">
           <div class="sec-head"><h2><span class="sec-num">2.0</span>High-level architecture diagrams</h2></div>
-          <p>Three complementary views of the same system. Start with the <strong>system overview</strong> (what exists), then zoom into <strong>CarService</strong> (where vehicle policy lives), then the <strong>partitions & processes</strong> view (who ships what, and where the process boundaries are). Hover a block for a short description.</p>
+          <p>Three complementary views of the same system. Start with the <strong>system overview</strong> (what exists), then zoom into <strong>CarService</strong> (where vehicle policy lives), then the <strong>partitions & processes</strong> view (who ships what, and where the process boundaries are). Hover a component to trace its direct connections (everything else dims) and read a one-line description.</p>
           <div class="tabs" data-tabs>
             <div class="tab-list" role="tablist">
-              <button data-tab="overview" aria-selected="true">① System overview</button>
-              <button data-tab="carservice">② CarService internals</button>
-              <button data-tab="partitions">③ Partitions & processes</button>
+              <button data-tab="overview" aria-selected="true">System architecture</button>
+              <button data-tab="carservice">CarService internals</button>
+              <button data-tab="partitions">Partitions & processes</button>
             </div>
             <div class="tab-panel" data-panel="overview">
-              <div class="glass"><div class="hd-wrap" id="hd-overview"></div>
-                <div class="hd-legend"><span style="color:#38bdf8"><i></i>/system &amp; /product</span><span style="color:#34d399"><i></i>/vendor (HALs)</span><span style="color:#fbbf24"><i></i>Linux kernel</span><span style="color:#94a3b8"><i></i>Hardware</span><span style="color:#a855f7"><i></i>Car-specific framework</span></div></div>
-              <p class="small muted mt">AAOS keeps the entire standard Android stack and adds the car-specific pieces in purple: the Car API, CarService, car native daemons and automotive HALs.</p>
+              <div class="glass"><div class="hd-wrap" id="hd-overview"></div></div>
+              <p class="small muted mt">AAOS keeps the entire standard Android stack and adds the car-specific pieces: the Car API, CarService, car native daemons and automotive HALs. Every crossing of the amber Treble line is a Stable AIDL interface.</p>
             </div>
             <div class="tab-panel" data-panel="carservice">
-              <div class="glass"><div class="hd-wrap" id="hd-carservice"></div>
-                <div class="hd-legend"><span style="color:#c084fc"><i></i>Binder IPC</span><span style="color:#34d399"><i></i>OEM plug-in points (see <a href="extensions.html">OEM Extensibility</a>)</span></div></div>
+              <div class="glass"><div class="hd-wrap" id="hd-carservice"></div></div>
               <p class="small muted mt"><code>ICarImpl</code> creates and owns every car service. HAL-facing services never talk to the VHAL directly: they go through <code>VehicleHal</code>, which multiplexes one IVehicle connection into per-domain “HAL services”.</p>
             </div>
             <div class="tab-panel" data-panel="partitions">
               <div class="glass"><div class="hd-wrap" id="hd-partitions"></div></div>
-              <p class="small muted mt">The vertical dashed line is the Treble boundary: only stable, versioned interfaces (AIDL with <code>@VintfStability</code>, sysprops, RRO-able resources) may cross it. This is what lets Google/OEMs update /system independently of /vendor.</p>
+              <p class="small muted mt">The amber line is the Treble boundary: only stable, versioned interfaces (AIDL with <code>@VintfStability</code>, sysprops, RRO-able resources) may cross it. This is what lets Google/OEMs update /system independently of /vendor.</p>
             </div>
           </div>
         </section>
 
         <section class="doc-section" id="overview" data-title="Five layers at a glance">
           <div class="sec-head"><h2><span class="sec-num">2.1</span>Five layers at a glance</h2></div>
-          <p>This is the map you will keep coming back to. The dashed regions are the four worlds of the stack — <strong>Android user space</strong>, <strong>system services</strong>, the <strong>native HAL</strong> on <code>/vendor</code> and the <strong>MCU / vehicle bus</strong> — separated by the L3 contract (the Treble boundary). The glowing connectors show how a request travels down (cyan) and how vehicle events come back up (green). Click a layer to open it in the explorer; hover a component for a one-line explanation.</p>
+          <p>This is the map you will keep coming back to. The dashed regions are the four worlds of the stack — <strong>Android user space</strong>, <strong>system services</strong>, the <strong>native HAL</strong> on <code>/vendor</code> and the <strong>MCU / vehicle bus</strong> — separated by the L3 contract (the Treble boundary). The glowing connectors show how a request travels down (solid dots) and how vehicle events come back up (hollow dots). Click a layer to open it in the explorer; hover a component for a one-line explanation.</p>
           <div id="stack5" class="s5" aria-label="AAOS 14 five-layer architecture"></div>
-          <div class="s5-legend"><span class="c-blue">Request / command (down)</span><span class="c-green">Vehicle event / callback (up)</span><span style="color:var(--purple-text)">Binder IPC</span><span class="c-amber">Hardware drivers / bus</span></div>
+          <div class="s5-legend"><span style="color:var(--dg-cyan)">Request / command (down)</span><span class="hollow" style="color:var(--dg-cyan)">Vehicle event / callback (up)</span><span style="color:var(--dg-amber)">Treble contract · hardware drivers</span></div>
           <details class="mt"><summary class="small muted" style="cursor:pointer">Show the same information as a table</summary>
           <div class="table-wrap">
             <table class="t">

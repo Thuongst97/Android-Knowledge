@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   const { $, $$, esc, codeBlockHTML, wireCopy, Diagram: D } = window.AAOS;
-  const CYAN = "#70cff8", VIOLET = "#a78bfa", PINK = "#f472b6", GREEN = "#34d399", AMBER = "#fbbf24";
+  const CYAN = "var(--dg-cyan)", VIOLET = CYAN, PINK = "var(--dg-amber)", GREEN = CYAN, AMBER = "var(--dg-amber)";
   const tip = (label, extra) => { const t = extra || D.termTip(label); return t ? ` data-tip="${esc(t)}" tabindex="0"` : ""; };
 
   /* =========================== 5-layer stack =========================== */
@@ -59,13 +59,13 @@
   const host = $("#signal-flow-diagram");
   if (!host) return;
   const NODES = [
-    { t: "Touchscreen App", l: "L1 · APP", sub: "com.oem.hvac · Kotlin", c: CYAN, tip: "HVAC app UI — shows the value the vehicle reports, never just the intent" },
-    { t: "CarPropertyManager", l: "L2 · CAR API", sub: "android.car · in-process", c: VIOLET },
-    { t: "CarService", l: "L2 · SERVICE", sub: "CarPropertyService", c: VIOLET },
-    { t: "AIDL IVehicle", l: "L3 · CONTRACT", sub: "Binder · Treble boundary", c: PINK },
-    { t: "C++ VHAL", l: "L4 · HAL", sub: "DefaultVehicleHal", c: GREEN, tip: "VHAL — translates the property into the OEM's CAN signal" },
-    { t: "CAN Driver", l: "L5 · DRIVER", sub: "SocketCAN can0 / MCU", c: AMBER, tip: "CAN driver — SocketCAN or an SPI link to the MCU that owns the bus" },
-    { t: "HVAC ECU", l: "L5 · ECU", sub: "CAN FD · blend door", c: AMBER, tip: "HVAC ECU — applies the setpoint and reports the actual state" },
+    { t: "Touchscreen App", l: "[App] L1", sub: "com.oem.hvac · Kotlin", c: CYAN, tip: "HVAC app UI — shows the value the vehicle reports, never just the intent" },
+    { t: "CarPropertyManager", l: "[API] L2", sub: "android.car · in-process", c: VIOLET },
+    { t: "CarService", l: "[Svc] L2", sub: "CarPropertyService", c: VIOLET },
+    { t: "AIDL IVehicle", l: "[AIDL] L3", sub: "Binder · Treble boundary", c: PINK },
+    { t: "C++ VHAL", l: "[HAL] L4", sub: "DefaultVehicleHal", c: GREEN, tip: "VHAL — translates the property into the OEM's CAN signal" },
+    { t: "CAN Driver", l: "[Driver] L5", sub: "SocketCAN can0 / MCU", c: AMBER, tip: "CAN driver — SocketCAN or an SPI link to the MCU that owns the bus" },
+    { t: "HVAC ECU", l: "[ECU] L5", sub: "CAN FD · blend door", c: AMBER, tip: "HVAC ECU — applies the setpoint and reports the actual state" },
   ];
   const S = [
     { node: 0, link: -1, dir: "req", title: "Tap ▲ — the UI shows 24.0 °C as pending", ipc: "Main thread", detail: "The climate panel receives the touch. Good AAOS UIs never treat the requested value as truth: they show a pending state until the vehicle confirms.", lang: "kotlin", file: "HvacFragment.kt", code: "binding.btnUp.setOnClickListener {\n    viewModel.showPending(24.0f)          // amber: waiting for the car\n    controller.setDriverTemperature(24.0f)\n}" },
@@ -129,7 +129,7 @@
       return;
     }
     const n = NODES[s.node];
-    detail.innerHTML = `<div><span class="badge" style="color:${n.c};border-color:${n.c}66;background:${n.c}14">${n.l}</span> <span class="badge gray">${esc(s.ipc)}</span>
+    detail.innerHTML = `<div><span class="badge" style="color:${n.c};border-color:color-mix(in srgb, ${n.c} 40%, transparent);background:color-mix(in srgb, ${n.c} 8%, transparent)">${n.l}</span> <span class="badge gray">${esc(s.ipc)}</span>
         <h4>${cur + 1}. ${esc(s.title)}</h4><p class="small">${esc(s.detail)}</p></div>
       <div>${codeBlockHTML({ code: s.code, lang: s.lang, file: s.file, label: s.lang })}</div>`;
     wireCopy(detail);

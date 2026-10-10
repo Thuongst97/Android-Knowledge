@@ -5,25 +5,25 @@
   /* ------------------------------ Zones ------------------------------ */
   const ZONES = [
     {
-      name: "Primary zone (Driver)", color: "#70cff8", occupant: "Occupant zone 0 · DRIVER · SEAT_ROW_1_LEFT", user: "Driver user (e.g. user 10)",
+      name: "Primary zone (Driver)", color: "var(--zone-0)", occupant: "Occupant zone 0 · DRIVER · SEAT_ROW_1_LEFT", user: "Driver user (e.g. user 10)",
       display: "Center Display (MAIN) + Cluster",
       groups: [["Media", "bus0_media_out", "MUSIC, ANNOUNCEMENT", 60], ["Navigation", "bus1_navigation_out · bus2_voice_command_out", "NAVIGATION, VOICE_COMMAND", 70], ["Call", "bus4_call_out", "CALL_RING, CALL", 65], ["System", "bus5_alarm_out", "ALARM, NOTIFICATION, SYSTEM_SOUND, EMERGENCY, SAFETY, VEHICLE_STATUS", 55]],
       note: "The primary zone always exists (audioZoneId = 0). Safety sounds (SAFETY, EMERGENCY) and warning chimes are typically required to play in this zone.",
     },
     {
-      name: "Zone 1 (Front passenger)", color: "#34d399", occupant: "Occupant zone 1 · FRONT_PASSENGER · SEAT_ROW_1_RIGHT", user: "Passenger user (user 11)",
+      name: "Zone 1 (Front passenger)", color: "var(--zone-1)", occupant: "Occupant zone 1 · FRONT_PASSENGER · SEAT_ROW_1_RIGHT", user: "Passenger user (user 11)",
       display: "Passenger Display (MAIN of zone 1)",
       groups: [["All", "bus100_audio_zone_1", "All contexts", 45]],
       note: "Usually headrest speakers or the front passenger's Bluetooth headphones.",
     },
     {
-      name: "Zone 2 (Rear-left)", color: "#fbbf24", occupant: "Occupant zone 2 · REAR_PASSENGER · SEAT_ROW_2_LEFT", user: "Rear user (user 12)",
+      name: "Zone 2 (Rear-left)", color: "var(--zone-2)", occupant: "Occupant zone 2 · REAR_PASSENGER · SEAT_ROW_2_LEFT", user: "Rear user (user 12)",
       display: "Left RSE",
       groups: [["All", "bus200_audio_zone_2", "All contexts", 50]],
       note: "Headphones attached to the rear-left entertainment screen. Independent focus stack: the movie is not interrupted when the driver takes a call.",
     },
     {
-      name: "Zone 3 (Rear-right)", color: "#a78bfa", occupant: "Occupant zone 3 · REAR_PASSENGER · SEAT_ROW_2_RIGHT", user: "Rear user (user 13)",
+      name: "Zone 3 (Rear-right)", color: "var(--zone-3)", occupant: "Occupant zone 3 · REAR_PASSENGER · SEAT_ROW_2_RIGHT", user: "Rear user (user 13)",
       display: "Right RSE",
       groups: [["All", "bus300_audio_zone_3", "All contexts", 40]],
       note: "Same as zone 2. In Android 14 a zone may have several zoneConfigs (e.g. switching between a 3.5 mm jack and Bluetooth).",

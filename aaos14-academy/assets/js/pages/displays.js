@@ -3,10 +3,10 @@
   const { $, $$, esc } = window.AAOS;
 
   const ZONES = [
-    { id: 0, type: "OCCUPANT_TYPE_DRIVER", seat: "SEAT_ROW_1_LEFT", user: "Driver — current user (e.g. 10)", audio: 0, displays: ["ivi", "cluster", "hud"], color: "#70cff8", note: "The driver's zone owns the MAIN display, the cluster and the HUD. UX Restrictions apply to this zone's MAIN display while the car is moving." },
-    { id: 1, type: "OCCUPANT_TYPE_FRONT_PASSENGER", seat: "SEAT_ROW_1_RIGHT", user: "Visible background user (11)", audio: 1, displays: ["pax"], color: "#34d399", note: "The passenger screen is usually allowed to play video while driving, provided the viewing angle does not face the driver (market-specific regulation)." },
-    { id: 2, type: "OCCUPANT_TYPE_REAR_PASSENGER", seat: "SEAT_ROW_2_LEFT", user: "Visible background user (12)", audio: 2, displays: ["rsel"], color: "#fbbf24", note: "Screen mounted on the back of the driver's seat; its touch input only goes to this display." },
-    { id: 3, type: "OCCUPANT_TYPE_REAR_PASSENGER", seat: "SEAT_ROW_2_RIGHT", user: "Visible background user (13)", audio: 3, displays: ["rser"], color: "#a78bfa", note: "Same as zone 2, with its own headphone audio zone." },
+    { id: 0, type: "OCCUPANT_TYPE_DRIVER", seat: "SEAT_ROW_1_LEFT", user: "Driver — current user (e.g. 10)", audio: 0, displays: ["ivi", "cluster", "hud"], color: "var(--zone-0)", note: "The driver's zone owns the MAIN display, the cluster and the HUD. UX Restrictions apply to this zone's MAIN display while the car is moving." },
+    { id: 1, type: "OCCUPANT_TYPE_FRONT_PASSENGER", seat: "SEAT_ROW_1_RIGHT", user: "Visible background user (11)", audio: 1, displays: ["pax"], color: "var(--zone-1)", note: "The passenger screen is usually allowed to play video while driving, provided the viewing angle does not face the driver (market-specific regulation)." },
+    { id: 2, type: "OCCUPANT_TYPE_REAR_PASSENGER", seat: "SEAT_ROW_2_LEFT", user: "Visible background user (12)", audio: 2, displays: ["rsel"], color: "var(--zone-2)", note: "Screen mounted on the back of the driver's seat; its touch input only goes to this display." },
+    { id: 3, type: "OCCUPANT_TYPE_REAR_PASSENGER", seat: "SEAT_ROW_2_RIGHT", user: "Visible background user (13)", audio: 3, displays: ["rser"], color: "var(--zone-3)", note: "Same as zone 2, with its own headphone audio zone." },
   ];
   const DISPLAYS = {
     ivi: { name: "Center Display (IVI)", type: "DISPLAY_TYPE_MAIN", port: 0, zone: 0, input: "TOUCH_SCREEN | ROTARY_NAVIGATION | DPAD_KEYS | NAVIGATE_KEYS" },

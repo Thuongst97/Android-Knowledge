@@ -1,72 +1,58 @@
 (function () {
   "use strict";
   const { $, $$, Diagram: D, SequenceDiagram } = window.AAOS;
-  const BLUE = "#70cff8", PURPLE = "#a78bfa", GREEN = "#34d399", GRAY = "#94a3b8";
-
   /* ------------------------- Extension points map ------------------------- */
-  (function () {
-    let s = D.defs("ex");
-    // Applications
-    s += D.box(20, 14, 960, 84, { c: BLUE, title: "Applications (/system_ext · /product)" });
-    const appX = 36, appW = 928, gap = 10, bw = (appW - gap * 3) / 4;
-    const apps = [
-      ["CarLauncher · CarSystemUI", "AOSP apps, restyled", 1],
-      ["OEM privileged apps", "android:persistent services", 4],
-      ["Plug-in services · OemCarService", "started/bound by CarService", 2],
-      ["Car UI library", "shared look across apps", 7],
-    ];
-    apps.forEach((a, i) => {
-      const x = appX + i * (bw + gap);
-      s += D.box(x, 44, bw, 42, { c: i === 2 ? GREEN : BLUE, title: a[0], sub: a[1], titleY: 17, soft: i === 2 });
-      s += D.pin(x + bw - 8, 44, a[2]);
-    });
-    const plugBoxX = appX + 2 * (bw + gap), plugCx = plugBoxX + bw / 2;
+  // Micro tags name the mechanism: [Config] RRO · [Plug-in] early-startup · [Policy] OemCarService
+  // [App] persistent priv-app · [Fork] system_server service · [HAL] vendor · [UI lib] Car UI library
+  D.layered($("#hd-ext"), {
+    id: "ext", label: "OEM extension points across the AAOS stack",
+    bands: [
+      { key: "apps", tag: "L1", title: ["Applications &", "UI Framework"], sub: ["/system_ext · /product"] },
+      { key: "fw", tag: "L2", title: ["Android Framework", "& CarService"], sub: ["system_server"] },
+      { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "Stable AIDL · VINTF isolation" },
+      { key: "vendor", tag: "L4", title: ["Vendor Hardware", "Abstraction"], sub: ["/vendor · /odm"] },
+      { key: "hw", tag: "L5", amber: true, title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · CAN-FD · ECUs"] },
+    ],
+    nodes: [
+      { id: "aosp", band: "apps", at: [0, 0.19], title: "CarLauncher · SystemUI", sub: "AOSP apps, restyled", tag: "App" },
+      { id: "rro", band: "apps", at: [0.2, 0.39], title: "Product RROs", sub: "overlay resources", tag: "Config", hl: true, tip: "Runtime Resource Overlays — change values, mappings and theming of AOSP packages without code" },
+      { id: "priv", band: "apps", at: [0.4, 0.59], title: "OEM priv-apps", sub: "android:persistent services", tag: "App", hl: true },
+      { id: "plug", band: "apps", at: [0.6, 0.79], title: "Plug-in services", sub: "early-startup · OemCarService", tag: "Plug-in", hl: true },
+      { id: "carui", band: "apps", at: [0.83, 1], title: "Car UI library", sub: "RRO tokens · plugin APK", tag: "UI lib", hl: true },
 
-    // Framework
-    s += D.box(20, 118, 360, 150, { c: BLUE, title: "system_server — Android framework" });
-    s += D.chips(32, 146, 336, ["ActivityManager", "PackageManager", "WindowManager", "AudioService"]).svg;
-    s += D.box(32, 206, 336, 48, { c: GREEN, soft: true, title: "Custom OEM system service", sub: "framework fork — last resort", titleY: 20 });
-    s += D.pin(360, 206, 5);
+      { id: "ss", band: "fw", at: [0, 0.19], title: "system_server", sub: "framework services", tag: "Svc" },
+      { id: "fork", band: "fw", at: [0, 0.19], row: 1, title: "Custom system service", sub: "fork · last resort", tag: "Fork", soft: true, tip: "Custom service inside system_server — powerful but must be rebased every Android release" },
+      { id: "cfg", band: "fw", at: [0.2, 0.39], title: "CarService config.xml", sub: "overlayable resources", tag: "Config" },
+      { id: "car", band: "fw", at: [0.4, 0.59], rows: 2, title: "CarService", sub: "com.android.car", tag: "Svc" },
+      { id: "vsc", band: "fw", at: [0.6, 0.79], title: "VendorServiceController", sub: "early-startup list", tag: "Plug-in", tip: "VendorServiceController — starts and binds the services listed in config_earlyStartupServices" },
+      { id: "oemp", band: "fw", at: [0.6, 0.79], row: 1, title: "CarOemProxyService", sub: "config_oemCarService", tag: "Policy" },
 
-    s += D.box(400, 118, 580, 150, { c: PURPLE, title: "CarService — com.android.car" });
-    const cw = (556 - 10) / 2;
-    s += D.box(412, 146, cw, 44, { c: GREEN, title: "VendorServiceController", sub: "config_earlyStartupServices", titleY: 18 });
-    s += D.pin(412 + cw - 8, 146, 2);
-    s += D.box(422 + cw, 146, cw, 44, { c: GREEN, title: "CarOemProxyService", sub: "config_oemCarService", titleY: 18 });
-    s += D.pin(422 + cw + cw - 8, 146, 3);
-    s += D.box(412, 202, cw, 52, { c: PURPLE, title: "config.xml resources", sub: "zones · features · plug-in lists", titleY: 22 });
-    s += D.pin(412 + cw - 8, 202, 1);
-    s += D.box(422 + cw, 202, cw, 52, { c: PURPLE, title: "VehicleHal", sub: "single IVehicle client", titleY: 22 });
+      { id: "vhal", band: "vendor", at: [0.4, 0.59], title: "Vehicle HAL", sub: "+ VENDOR-group properties", tag: "HAL", hl: true },
+      { id: "vaidl", band: "vendor", at: [0.6, 0.79], title: "OEM vendor AIDL", sub: "@VintfStability service", tag: "HAL", hl: true },
+      { id: "vcfg", band: "vendor", at: [0.83, 1], title: "Vendor configs & RROs", sub: "XML · overlays", tag: "Config", hl: true },
+      { id: "mcu", band: "hw", at: [0.4, 0.79], title: "MCU · CAN-FD · ECUs", sub: "vehicle signals behind the VHAL", tag: "MCU" },
+    ],
+    edges: [
+      { from: "rro", to: "cfg", kind: "opt", label: "overlays" },
+      { from: "priv", to: "car", kind: "ipc" },
+      { from: "vsc", to: "plug", kind: "opt", label: "bind / start" },
+      { from: "oemp", to: "plug", kind: "opt", side: "right", label: "bind" },
+      { from: "cfg", to: "car", kind: "call", label: "read at boot" },
+      { from: "fork", to: "ss", kind: "call" },
+      { from: "car", to: "vhal", kind: "ipc", label: "IVehicle", marker: "AIDL" },
+      { from: "vhal", to: "mcu", kind: "hw" },
+    ],
+  });
 
-    // plug arrows: controller/proxy → plug-in apps box
-    s += D.arrow(`M${412 + cw / 2},146 V112 H${plugCx - 20} V87`, "plug", "ex");
-    s += D.arrow(`M${422 + cw + cw / 2},146 V106 H${plugCx + 20} V87`, "plug", "ex");
-
-    // Treble line
-    s += `<line class="hd-line" x1="20" y1="284" x2="980" y2="284"/>` + D.note(980, 280, "Treble boundary — stable AIDL / VINTF", "end");
-
-    // Vendor
-    s += D.box(20, 296, 960, 84, { c: GREEN, title: "/vendor — hardware-facing code" });
-    const vend = [["Vehicle HAL", "+ VENDOR-group properties", 6], ["OEM vendor AIDL service", "@VintfStability", 6], ["Vendor config XMLs", "car_audio · power_policy", 1], ["Vendor RROs", "device-specific overlays", 1]];
-    vend.forEach((v, i) => {
-      const x = appX + i * (bw + gap);
-      s += D.box(x, 326, bw, 42, { c: GREEN, title: v[0], sub: v[1], titleY: 17, soft: i === 1 });
-      s += D.pin(x + bw - 8, 326, v[2]);
-    });
-    s += D.arrow(`M${422 + cw + cw / 2},254 V325`, "ipc", "ex");
-
-    s += D.box(20, 396, 960, 44, { c: GRAY, title: "MCU · CAN / LIN / Ethernet · ECUs", center: true, titleY: 27 });
-    $("#hd-ext").innerHTML = D.svg(1000, 452, s, "OEM extension points map");
-  })();
 
   /* ------------------------- Decision helper ------------------------- */
   const CHOICES = [
-    ["Change a value, mapping or the look", "Occupant zones, audio routing flag, enabled features, colors, layouts", "overlays", "① Runtime Resource Overlay", "Create an RRO module targeting the package that owns the resource (CarService: <code>com.android.car.updatable</code>). No code, lowest upgrade cost."],
-    ["Run OEM background logic tied to boot or user lifecycle", "Telemetry, connectivity bridge, OEM cloud sync", "plugin-services", "② CarService plug-in service", "Write a service in a privileged app and list it in <code>config_earlyStartupServices</code> with the right <code>user</code> and <code>trigger</code>. CarService starts, binds and re-binds it for you."],
-    ["Change how AAOS decides audio focus, volume or ducking", "OEM-specific interruption rules", "oem-car-service", "③ OemCarService", "Implement <code>OemCarService</code> with the policy components you need and point <code>config_oemCarService</code> at it. Unimplemented components keep AOSP defaults."],
-    ["Expose a new vehicle signal to apps", "A CAN signal not covered by standard properties", "vendor-service", "⑥ VHAL vendor property", "Add a <code>VENDOR</code>-group property to your VHAL and access it through <code>CarPropertyManager</code>. CarService keeps enforcing permissions."],
-    ["Integrate new hardware that is not a vehicle signal", "DSP engine, proprietary sensor, streaming device", "vendor-service", "⑥ Vendor AIDL service", "Define a <code>@VintfStability</code> AIDL interface, implement it on /vendor, declare it in VINTF and SEPolicy, and consume it from a privileged app or plug-in service."],
-    ["Provide a new platform API used by many system components early in boot", "Rare — e.g. a device-wide policy engine", "system-service", "⑤ System service in system_server (last resort)", "Add a <code>SystemService</code>, register it in <code>SystemServer</code> and <code>SystemServiceRegistry</code>, label it in SELinux. Budget for rebasing it every Android release."],
+    ["Change a value, mapping or the look", "Occupant zones, audio routing flag, enabled features, colors, layouts", "overlays", "[Config] Runtime Resource Overlay", "Create an RRO module targeting the package that owns the resource (CarService: <code>com.android.car.updatable</code>). No code, lowest upgrade cost."],
+    ["Run OEM background logic tied to boot or user lifecycle", "Telemetry, connectivity bridge, OEM cloud sync", "plugin-services", "[Plug-in] CarService plug-in service", "Write a service in a privileged app and list it in <code>config_earlyStartupServices</code> with the right <code>user</code> and <code>trigger</code>. CarService starts, binds and re-binds it for you."],
+    ["Change how AAOS decides audio focus, volume or ducking", "OEM-specific interruption rules", "oem-car-service", "[Policy] OemCarService", "Implement <code>OemCarService</code> with the policy components you need and point <code>config_oemCarService</code> at it. Unimplemented components keep AOSP defaults."],
+    ["Expose a new vehicle signal to apps", "A CAN signal not covered by standard properties", "vendor-service", "[HAL] VHAL vendor property", "Add a <code>VENDOR</code>-group property to your VHAL and access it through <code>CarPropertyManager</code>. CarService keeps enforcing permissions."],
+    ["Integrate new hardware that is not a vehicle signal", "DSP engine, proprietary sensor, streaming device", "vendor-service", "[HAL] Vendor AIDL service", "Define a <code>@VintfStability</code> AIDL interface, implement it on /vendor, declare it in VINTF and SEPolicy, and consume it from a privileged app or plug-in service."],
+    ["Provide a new platform API used by many system components early in boot", "Rare — e.g. a device-wide policy engine", "system-service", "[Fork] System service in system_server (last resort)", "Add a <code>SystemService</code>, register it in <code>SystemServer</code> and <code>SystemServiceRegistry</code>, label it in SELinux. Budget for rebasing it every Android release."],
   ];
   const pick = $("#ext-pick"), answer = $("#ext-answer");
   pick.innerHTML = CHOICES.map((c, i) => `<button data-i="${i}"><b>${c[0]}</b><small>${c[1]}</small></button>`).join("");

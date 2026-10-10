@@ -1,31 +1,34 @@
 (function () {
   "use strict";
   const { $, esc, Diagram: D, SequenceDiagram } = window.AAOS;
-  const BLUE = "#70cff8", PURPLE = "#a78bfa", GREEN = "#34d399", AMBER = "#fbbf24", GRAY = "#94a3b8";
-
   /* ------------------------- Process anatomy diagram ------------------------- */
-  (function () {
-    let s = D.defs("pa");
-    s += D.box(20, 14, 640, 304, { c: BLUE, title: "App process — e.g. com.oem.hvac (UID u10_a123, forked from Zygote)" });
-    s += D.box(36, 50, 300, 124, { c: GREEN, title: "Main thread", sub: "Looper + MessageQueue" });
-    s += D.chips(48, 94, 280, ["Handler(s)", "lifecycle callbacks", "input events", "UI / Choreographer", "Car API callbacks (default)"]).svg;
-    s += D.box(350, 50, 296, 124, { c: PURPLE, title: "Binder thread pool", sub: "binder:<pid>_1 … _N" });
-    s += D.chips(362, 94, 276, ["incoming AIDL calls", "callbacks from services", "up to 15 extra threads", "runs concurrently"]).svg;
-    s += D.arrow("M350,152 H339", "plug", "pa") + D.note(343, 190, "Handler.post → main", "middle");
-    s += D.box(36, 200, 300, 52, { c: GRAY, title: "RenderThread", sub: "GPU drawing", titleY: 20 });
-    s += D.box(350, 200, 296, 52, { c: AMBER, title: "Background workers", sub: "HandlerThread · Executor · Dispatchers.IO", titleY: 20 });
-    s += D.box(36, 264, 610, 40, { c: GRAY, soft: true, title: "ART runtime · preloaded classes shared with Zygote · SELinux domain untrusted_app / priv_app", center: true, titleY: 25 });
+  D.layered($("#hd-process"), {
+    id: "anat", label: "Anatomy of an Android app process",
+    bands: [
+      { key: "app", tag: "PROC", title: ["App process"], sub: ["com.oem.hvac", "UID u10_a123", "forked from Zygote"] },
+      { key: "kernel", tag: "KRNL", amber: true, title: ["Linux kernel"], sub: ["/dev/binder"] },
+      { key: "sys", tag: "PROC", title: ["System", "processes"], sub: ["system_server", "com.android.car"] },
+    ],
+    nodes: [
+      { id: "main", band: "app", at: [0, 0.32], title: "Main thread", sub: "Looper + MessageQueue · UI · lifecycle · Car API callbacks", tag: "Thread", hl: true, tip: "Main thread — runs a Looper: UI, input, lifecycle callbacks and (by default) Car API callbacks. Never block it." },
+      { id: "pool", band: "app", at: [0.36, 0.68], title: "Binder thread pool", sub: "binder:<pid>_N · up to 15 extra · concurrent", tag: "IPC", hl: true, tip: "Binder thread pool — incoming AIDL calls and callbacks from other processes run here, concurrently" },
+      { id: "workers", band: "app", at: [0.72, 1], title: "Background workers", sub: "HandlerThread · Executor · Dispatchers.IO", tag: "Thread", tip: "Background workers — I/O and long work; results are posted back to the main Looper" },
+      { id: "render", band: "app", row: 1, at: [0, 0.32], title: "RenderThread", sub: "GPU drawing", tag: "Thread" },
+      { id: "art", band: "app", row: 1, at: [0.72, 1], title: "ART runtime", sub: "shared with Zygote · SELinux domain", tag: "Runtime", soft: true, tip: "ART runtime — classes preloaded by Zygote are shared; the process runs in an SELinux domain such as untrusted_app or priv_app" },
 
-    s += D.box(680, 14, 90, 304, { c: AMBER, title: "Binder", sub: "driver", center: true, titleY: 150 });
-    s += D.arrow("M646,100 H679", "ipc", "pa") + D.arrow("M679,124 H647", "ipc", "pa");
-    s += D.box(790, 14, 190, 140, { c: BLUE, title: "system_server", sub: "ActivityManager…" });
-    s += D.chips(802, 60, 170, ["ActivityManager", "WindowManager", "PackageManager"]).svg;
-    s += D.box(790, 170, 190, 148, { c: PURPLE, title: "CarService", sub: "com.android.car" });
-    s += D.chips(802, 216, 170, ["CarPropertyService", "CarAudioService", "… → VHAL"]).svg;
-    s += D.arrow("M770,70 H789", "ipc", "pa") + D.arrow("M789,92 H771", "ipc", "pa");
-    s += D.arrow("M770,230 H789", "ipc", "pa") + D.arrow("M789,252 H771", "ipc", "pa");
-    $("#hd-process").innerHTML = D.svg(1000, 330, s, "Anatomy of an Android app process");
-  })();
+      { id: "binder", band: "kernel", at: [0.36, 0.68], title: "Binder driver", sub: "copies data once · stamps caller UID/PID", tag: "Kernel", tip: "Binder driver — carries every IPC transaction and attaches the caller's real identity" },
+
+      { id: "ss", band: "sys", at: [0, 0.48], title: "system_server", sub: "ActivityManager · WindowManager · PackageManager", tag: "Svc" },
+      { id: "car", band: "sys", at: [0.52, 1], title: "CarService", sub: "CarPropertyService · CarAudioService · … → VHAL", tag: "Svc", hl: true },
+    ],
+    edges: [
+      { from: "pool", to: "main", kind: "call", label: "Handler.post" },
+      { from: "pool", to: "binder", kind: "ipc", label: "ioctl(BINDER_WRITE_READ)" },
+      { from: "binder", to: "ss", kind: "ipc", label: "transaction" },
+      { from: "binder", to: "car", kind: "ipc", label: "transaction" },
+    ],
+  });
+
 
   /* ------------------------- Binder call sequence ------------------------- */
   const lanes = [
