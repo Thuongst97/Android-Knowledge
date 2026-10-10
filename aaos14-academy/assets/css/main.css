@@ -72,11 +72,6 @@ body {
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
-/* dark theme: faint circuit traces at the page edges (img/circuit-bg.svg); none in light */
-body::before {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background: var(--bg-deco) center / cover no-repeat;
-}
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 img, svg { max-width: 100%; }
@@ -267,9 +262,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
   backdrop-filter: blur(10px);
 }
 .sec-head h2 { margin: 0; display: flex; align-items: baseline; gap: 12px; }
+.sec-head h2 code { overflow-wrap: anywhere; }
+@media (max-width: 560px) { .sec-head h2 { display: block; } .sec-head .sec-num { margin-right: 8px; } } /* inline flow wraps long titles the flex row can't */
 .sec-head .sec-num { font-family: var(--mono); font-size: 0.85rem; color: var(--sechead-num); font-weight: 600; }
 .sec-head .anchor { opacity: 0; color: var(--faint); font-size: 1rem; }
 .sec-head:hover .anchor { opacity: 1; }
+@media (hover: none), (max-width: 900px) { .sec-head .anchor { display: none; } } /* hover-only affordance; also keeps long titles from widening the page */
 
 /* ------------------------------------------------------------ Components */
 .glass {
@@ -345,6 +343,12 @@ table.t thead th { background: var(--thead-bg); color: var(--text); font-weight:
 table.t tbody tr:last-child td { border-bottom: 0; }
 table.t tbody tr:hover td { background: rgba(112, 207, 248, 0.04); }
 table.t td:first-child { color: var(--text); font-weight: 550; }
+/* option tables: whole-token chips instead of wrapping "a · b · c" runs */
+.opt-table .opt-c-opt { width: 21%; } .opt-table .opt-c-val { width: 27%; }
+.opt-table code { white-space: nowrap; }
+.opt-def { display: block; margin-top: 6px; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+.opt-vals { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 700px) { .opt-table .opt-c-opt, .opt-table .opt-c-val { width: auto; } .opt-table td:last-child code { white-space: normal; } }
 
 /* Tabs */
 .tabs { margin: 18px 0; }
@@ -452,25 +456,54 @@ table.matrix th.col-aa { color: var(--amber); } table.matrix th.col-aaos { color
 
 /* Deployment architecture */
 .deploy { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 18px; align-items: start; }
-.deploy-diagram { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-.dp-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.dp-row-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); font-weight: 700; }
-.dp-item {
-  flex: 1 1 110px; padding: 10px 12px; border-radius: 10px; cursor: pointer; text-align: left;
-  background: var(--bg-3); border: 1px solid var(--border); color: var(--text-2); font: inherit; font-size: 0.82rem; transition: 0.15s;
+.deploy-diagram, .deploy .info-panel {
+  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ao-card-a) 88%, transparent), color-mix(in srgb, var(--ao-card-b) 88%, transparent));
+  border-color: var(--border-hi); box-shadow: inset 0 1px 0 var(--ao-hi), var(--ao-lift);
 }
-.dp-item b { display: block; color: var(--text); font-size: 0.86rem; }
-.dp-item small { color: var(--muted); font-size: 0.74rem; font-family: var(--mono); }
-.dp-item:hover { border-color: var(--blue); }
-.dp-item.sel { border-color: var(--blue); background: var(--blue-dim); box-shadow: 0 0 0 3px rgba(112, 207, 248, 0.1); }
-.dp-item.soc { border-color: rgba(112, 207, 248, 0.35); }
-.dp-item.mcu { border-color: rgba(168, 85, 247, 0.4); }
-.dp-item.bus { border-color: rgba(251, 191, 36, 0.4); }
-.dp-item.ecu { border-color: rgba(52, 211, 153, 0.35); }
-.dp-link { text-align: center; font-size: 0.74rem; font-family: var(--mono); color: var(--faint); position: relative; padding: 2px 0; }
-.dp-link::before { content: "▲▼"; color: var(--blue); margin-right: 6px; letter-spacing: -2px; }
-.dp-soc { padding: 12px; border-radius: 12px; border: 1px dashed rgba(112, 207, 248, 0.35); }
-.dp-soc-title { font-size: 0.78rem; color: var(--blue); font-weight: 650; margin-bottom: 8px; }
+.deploy-diagram { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.dp-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.dp-row-label { font: 700 0.68rem var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: color-mix(in srgb, var(--tn) var(--tone-ink), var(--dg-title)); }
+/* blocks share the layer-slab look of the AAOS overview (.ao-layer) */
+.dp-item {
+  position: relative; z-index: 1; flex: 1 1 110px; padding: 11px 13px; border-radius: 12px; cursor: pointer; text-align: left;
+  color: var(--text-2); font: inherit; font-size: 0.82rem; transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  background:
+    var(--ao-brush),
+    linear-gradient(180deg, color-mix(in srgb, var(--tn) var(--ao-tint), var(--ao-card-a)), color-mix(in srgb, var(--tn) 5%, var(--ao-card-b)));
+  border: 1.5px solid color-mix(in srgb, var(--tn) 60%, transparent);
+  box-shadow:
+    0 0 16px -7px color-mix(in srgb, var(--tn) var(--ao-glow), transparent),
+    inset 0 0 22px -12px color-mix(in srgb, var(--tn) var(--ao-glow), transparent),
+    inset 0 1px 0 var(--ao-hi), var(--ao-lift);
+}
+.dp-item b { display: block; color: var(--text); font-size: 0.88rem; font-weight: 650; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35); }
+.dp-item small { color: var(--text-2); font-size: 0.74rem; font-family: var(--mono); }
+.dp-item:hover { border-color: var(--tn); transform: translateY(-1px); }
+.dp-item.sel {
+  border-color: var(--tn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tn) 22%, transparent), 0 0 22px -4px color-mix(in srgb, var(--tn) 70%, transparent),
+    inset 0 0 26px -10px color-mix(in srgb, var(--tn) 70%, transparent), inset 0 1px 0 var(--ao-hi), var(--ao-lift);
+}
+/* conduits between rows: cancel the column gap so the pipe meets both rows */
+.dp-link { margin: -10px 0; }
+.dp-link span { padding-right: 52px; }
+/* here the conduit runs straight down between rows, with a port knob on each rim, so it never covers block titles */
+.dp-link .ao-pipe { top: -3px; bottom: -3px; width: 0; border-width: 0 6px 0 0; border-radius: 0; }
+.dp-link .ao-pipe::before, .dp-link .ao-pipe::after {
+  content: ""; position: absolute; left: -6px; right: auto; width: 18px; height: 18px; border-radius: 50%; opacity: 1;
+  background: var(--ao-knob); border: 1.5px solid color-mix(in srgb, var(--tn) 70%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--tn) 60%, transparent), 0 2px 3px rgba(0, 0, 0, 0.5);
+}
+.dp-link .ao-pipe::before { top: -9px; bottom: auto; }
+.dp-link .ao-pipe::after { bottom: -9px; }
+.dp-soc {
+  position: relative; z-index: 1; padding: 13px; border-radius: 14px;
+  background: var(--ao-weave), color-mix(in srgb, var(--tn) 5%, var(--ao-tray));
+  border: 1.5px dashed color-mix(in srgb, var(--tn) 50%, transparent);
+  box-shadow: inset 0 2px 10px var(--ao-tray), 0 0 18px -8px color-mix(in srgb, var(--tn) 50%, transparent);
+}
+.dp-soc-title { font-size: 0.8rem; color: color-mix(in srgb, var(--tn) var(--tone-ink), var(--dg-title)); font-weight: 650; margin-bottom: 10px; }
 .info-panel { padding: 22px; position: sticky; top: calc(var(--header-h) + 80px); }
 .info-panel h4 { margin-top: 0; color: var(--text); }
 .info-panel .ip-kicker { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--blue); font-weight: 700; }
@@ -662,7 +695,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
 .gloss-item p { margin: 0; font-size: 0.88rem; }
 
 /* Formula */
-.formula { font-family: var(--mono); font-size: 1rem; text-align: center; padding: 18px; margin: 16px 0; border-radius: 12px; background: var(--formula-bg); border: 1px solid var(--border); color: var(--text); }
+.formula { font-family: var(--mono); font-size: 1rem; text-align: center; padding: 18px; margin: 16px 0; border-radius: 12px; background: var(--formula-bg); border: 1px solid var(--border); color: var(--text); overflow-wrap: anywhere; }
 .formula .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 6px; }
 .formula .frac span:first-child { border-bottom: 1px solid var(--text-2); padding: 0 6px 2px; }
 .formula .frac span:last-child { padding-top: 2px; }
@@ -679,7 +712,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   .hero-inner { grid-template-columns: 1fr; }
   .path-steps { grid-template-columns: repeat(2, 1fr); }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .deploy, .layers, .sm-wrap, .code-explorer, .cabin, .seq-detail, .perm-check, .trace-top { grid-template-columns: 1fr; }
+  .deploy, .layers, .sm-wrap, .code-explorer, .cabin, .seq-detail, .perm-check, .trace-top { grid-template-columns: minmax(0, 1fr); }
   .seq-detail > div + div { border-left: 0; border-top: 1px solid var(--border); }
   .layer-stack, .info-panel, .ann-list { position: static; }
 }
@@ -785,7 +818,6 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   --chip-bg: #1c1e23;
   --line: #363a43;
   --line-2: #4a505a;
-  --bg-deco: url("../img/circuit-bg.svg");
   --formula-bg: var(--code-bg);
   --seq-future: 0.1;
   --seq-done: 0.5;
@@ -804,7 +836,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
     --red: #dc2626; --red-dim: rgba(220, 38, 38, 0.09);
     --purple-text: #7c3aed; --code-inline: #0369a1; --code-inline-bg: rgba(2, 132, 199, 0.08); --scroll: #cbd5e1;
     --header-bg: rgba(255, 255, 255, 0.85); --sidebar-bg: rgba(255, 255, 255, 0.65); --sechead: linear-gradient(180deg, rgba(245, 247, 251, 0.96) 70%, transparent);
-    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text); --bg-deco: none;
+    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text);
     --thead-bg: #f1f5f9; --footer-bg: rgba(255, 255, 255, 0.75); --alt-bg: rgba(226, 232, 240, 0.45);
     --panel: #ffffff; --panel-2: #f1f5f9; --panel-hi: #e0f2fe; --panel-soft: rgba(248, 250, 252, 0.85);
     --chip-bg: #f1f5f9; --line: #cbd5e1; --line-2: #94a3b8; --formula-bg: #ffffff; --seq-future: 0.22; --seq-done: 0.75; --bg-spotlight: radial-gradient(1100px 600px at 85% -10%, rgba(2, 132, 199, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 30%, rgba(124, 58, 237, 0.05), transparent 60%); --gold: #a8841f; --grad-mid: #475569; --text-2: #334155;
@@ -824,7 +856,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   --red: #dc2626; --red-dim: rgba(220, 38, 38, 0.09);
   --purple-text: #7c3aed; --code-inline: #0369a1; --code-inline-bg: rgba(2, 132, 199, 0.08); --scroll: #cbd5e1;
   --header-bg: rgba(255, 255, 255, 0.85); --sidebar-bg: rgba(255, 255, 255, 0.65); --sechead: linear-gradient(180deg, rgba(245, 247, 251, 0.96) 70%, transparent);
-    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text); --bg-deco: none;
+    --sechead-border: transparent; --sechead-shadow: none; --sechead-num: var(--blue); --sechead-bleed: 40px; --sechead-bleed-sm: 16px; --code-inline-border: rgba(2, 132, 199, 0.15); --strong: var(--text);
   --thead-bg: #f1f5f9; --footer-bg: rgba(255, 255, 255, 0.75); --alt-bg: rgba(226, 232, 240, 0.45);
   --panel: #ffffff; --panel-2: #f1f5f9; --panel-hi: #e0f2fe; --panel-soft: rgba(248, 250, 252, 0.85);
   --chip-bg: #f1f5f9; --line: #cbd5e1; --line-2: #94a3b8; --formula-bg: #ffffff; --seq-future: 0.22; --seq-done: 0.75; --bg-spotlight: radial-gradient(1100px 600px at 85% -10%, rgba(2, 132, 199, 0.06), transparent 60%), radial-gradient(900px 500px at -10% 30%, rgba(124, 58, 237, 0.05), transparent 60%); --gold: #a8841f; --grad-mid: #475569; --text-2: #334155;
@@ -870,7 +902,7 @@ pre.code .cl.hl { background: rgba(112, 207, 248, 0.16); box-shadow: inset 3px 0
 @media (max-width: 900px) { .lp-grid { grid-template-columns: 1fr; } }
 
 /* ---- Obsidian: interactive surfaces lift on hover ---- */
-.module-card:hover, .ref-item:hover, .pager a:hover, .dp-item:hover, .layer-btn:hover, .ext-pick button:hover { background: var(--surface-hi); }
+.module-card:hover, .ref-item:hover, .pager a:hover, .layer-btn:hover, .ext-pick button:hover { background: var(--surface-hi); }
 .glass { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03); }
 :root[data-theme="light"] .glass { box-shadow: none; }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .glass { box-shadow: none; } }
@@ -1365,19 +1397,20 @@ code.nowrap { white-space: nowrap; }
   --ao-weave: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.028) 0 2px, transparent 2px 4px),
               repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.22) 0 2px, transparent 2px 4px);
   --ao-brush: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px);
+  --ao-tray: rgba(0, 0, 0, 0.2);
 }
 :root[data-theme="light"] {
   --ao-card-a: #ffffff; --ao-card-b: #f3f5f8; --ao-tint: 9%; --ao-glow: 28%; --ao-rim: 70%;
   --ao-steel: #9aa3ae; --ao-knob: radial-gradient(circle at 35% 30%, #ffffff 0, #c7ced6 35%, #7d8792 80%);
   --ao-lift: 0 14px 24px -18px rgba(15, 23, 42, 0.45); --ao-hi: rgba(255, 255, 255, 0.9);
-  --ao-weave: none; --ao-brush: none;
+  --ao-weave: none; --ao-brush: none; --ao-tray: rgba(15, 23, 42, 0.04);
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     --ao-card-a: #ffffff; --ao-card-b: #f3f5f8; --ao-tint: 9%; --ao-glow: 28%; --ao-rim: 70%;
     --ao-steel: #9aa3ae; --ao-knob: radial-gradient(circle at 35% 30%, #ffffff 0, #c7ced6 35%, #7d8792 80%);
     --ao-lift: 0 14px 24px -18px rgba(15, 23, 42, 0.45); --ao-hi: rgba(255, 255, 255, 0.9);
-    --ao-weave: none; --ao-brush: none;
+    --ao-weave: none; --ao-brush: none; --ao-tray: rgba(15, 23, 42, 0.04);
   }
 }
 .ao-layer {
