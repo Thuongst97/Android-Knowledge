@@ -135,39 +135,39 @@
 
           <div class="deploy mt">
             <div class="deploy-diagram glass" id="deploy-diagram">
-              <div class="dp-row-label">Displays & sensors</div>
+              <div class="dp-row-label tn-native">Displays &amp; sensors</div>
               <div class="dp-row">
-                <button class="dp-item" data-k="cluster"><b>Instrument Cluster</b><small>12.3" · LVDS/GMSL</small></button>
-                <button class="dp-item" data-k="ivi"><b>Center Display (IVI)</b><small>15.6" touch</small></button>
-                <button class="dp-item" data-k="pax"><b>Passenger / RSE</b><small>FPD-Link III</small></button>
-                <button class="dp-item" data-k="cam"><b>Camera / Mic</b><small>MIPI CSI · A2B</small></button>
+                <button class="dp-item tn-native" data-k="cluster"><b>Instrument Cluster</b><small>12.3" · LVDS/GMSL</small></button>
+                <button class="dp-item tn-native" data-k="ivi"><b>Center Display (IVI)</b><small>15.6" touch</small></button>
+                <button class="dp-item tn-native" data-k="pax"><b>Passenger / RSE</b><small>FPD-Link III</small></button>
+                <button class="dp-item tn-native" data-k="cam"><b>Camera / Mic</b><small>MIPI CSI · A2B</small></button>
               </div>
-              <div class="dp-link">Serializer / Deserializer (SerDes)</div>
-              <div class="dp-soc">
+              <div class="ao-link dp-link tn-native"><i></i><span>Serializer / Deserializer (SerDes)</span><em class="ao-pipe" aria-hidden="true"></em></div>
+              <div class="dp-soc tn-app">
                 <div class="dp-soc-title">🧠 SoC — e.g. Qualcomm SA8295P / Renesas R-Car / NXP i.MX 8</div>
                 <div class="dp-row">
-                  <button class="dp-item soc" data-k="hyp"><b>Hypervisor</b><small>QNX / Gunyah / Xen</small></button>
-                  <button class="dp-item soc" data-k="aaos"><b>VM: AAOS 14</b><small>IVI · VHAL</small></button>
-                  <button class="dp-item soc" data-k="clustervm"><b>VM: Cluster</b><small>QNX / Linux RT</small></button>
-                  <button class="dp-item soc" data-k="conn"><b>Connectivity</b><small>5G · Wi-Fi · BT · GNSS</small></button>
+                  <button class="dp-item soc tn-app" data-k="hyp"><b>Hypervisor</b><small>QNX / Gunyah / Xen</small></button>
+                  <button class="dp-item soc tn-app" data-k="aaos"><b>VM: AAOS 14</b><small>IVI · VHAL</small></button>
+                  <button class="dp-item soc tn-app" data-k="clustervm"><b>VM: Cluster</b><small>QNX / Linux RT</small></button>
+                  <button class="dp-item soc tn-app" data-k="conn"><b>Connectivity</b><small>5G · Wi-Fi · BT · GNSS</small></button>
                 </div>
               </div>
-              <div class="dp-link">SPI / UART / Ethernet — OEM-specific IPC protocol</div>
+              <div class="ao-link dp-link tn-app"><i></i><span>SPI / UART / Ethernet — OEM-specific IPC protocol</span><em class="ao-pipe" aria-hidden="true"></em></div>
               <div class="dp-row">
-                <button class="dp-item mcu" data-k="mcu"><b>Vehicle MCU</b><small>AURIX TC3xx / RH850 · AUTOSAR Classic</small></button>
-                <button class="dp-item mcu" data-k="gw"><b>Central Gateway</b><small>Routing + Firewall</small></button>
+                <button class="dp-item mcu tn-hal" data-k="mcu"><b>Vehicle MCU</b><small>AURIX TC3xx / RH850 · AUTOSAR Classic</small></button>
+                <button class="dp-item mcu tn-hal" data-k="gw"><b>Central Gateway</b><small>Routing + Firewall</small></button>
               </div>
-              <div class="dp-link">Vehicle buses</div>
+              <div class="ao-link dp-link tn-hal"><i></i><span>Vehicle buses</span><em class="ao-pipe" aria-hidden="true"></em></div>
               <div class="dp-row">
-                <button class="dp-item bus" data-k="can"><b>CAN FD</b><small>Body · HVAC · Chassis</small></button>
-                <button class="dp-item bus" data-k="lin"><b>LIN</b><small>Seat · Mirror · Ambient</small></button>
-                <button class="dp-item bus" data-k="eth"><b>Automotive Ethernet</b><small>100/1000BASE-T1</small></button>
+                <button class="dp-item bus tn-treble" data-k="can"><b>CAN FD</b><small>Body · HVAC · Chassis</small></button>
+                <button class="dp-item bus tn-treble" data-k="lin"><b>LIN</b><small>Seat · Mirror · Ambient</small></button>
+                <button class="dp-item bus tn-treble" data-k="eth"><b>Automotive Ethernet</b><small>100/1000BASE-T1</small></button>
               </div>
               <div class="dp-row">
-                <button class="dp-item ecu" data-k="hvac"><b>HVAC ECU</b><small>Climate</small></button>
-                <button class="dp-item ecu" data-k="bcm"><b>BCM</b><small>Body Control</small></button>
-                <button class="dp-item ecu" data-k="vcu"><b>VCU / ECM</b><small>Powertrain</small></button>
-                <button class="dp-item ecu" data-k="adas"><b>ADAS</b><small>Camera / Radar</small></button>
+                <button class="dp-item ecu tn-fw" data-k="hvac"><b>HVAC ECU</b><small>Climate</small></button>
+                <button class="dp-item ecu tn-fw" data-k="bcm"><b>BCM</b><small>Body Control</small></button>
+                <button class="dp-item ecu tn-fw" data-k="vcu"><b>VCU / ECM</b><small>Powertrain</small></button>
+                <button class="dp-item ecu tn-fw" data-k="adas"><b>ADAS</b><small>Camera / Radar</small></button>
               </div>
             </div>
             <div class="info-panel glass" id="deploy-info" aria-live="polite"></div>
