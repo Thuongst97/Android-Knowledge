@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 04</span></nav>
-          <div class="eyebrow">Module 04 · Hands-on</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 08</span></nav>
+          <div class="eyebrow">Module 08 · Hands-on</div>
           <h1>Automotive Android User Profiles</h1>
           <p class="lead">A family car has many drivers. Each expects <em>their</em> seat position, mirrors, cluster layout, playlists and accounts the moment they get in. AAOS builds this on Android's multi-user system, extended with a <strong>User HAL</strong> so the vehicle itself — key fobs, seat modules, the cluster — takes part in every user operation.</p>
           <div class="page-meta"><span>⏱ 30 min read</span><span>🎯 Intermediate</span><span>📂 CarUserService · UserManagerService · User HAL properties</span></div>
         </header>
 
         <section class="doc-section" id="model" data-title="How Android models users">
-          <div class="sec-head"><h2><span class="sec-num">4.1</span>How Android models users</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.1</span>How Android models users</h2></div>
           <p>Every Android user has its own user ID, its own <code>/data/user/&lt;id&gt;</code> storage, its own app data, accounts and settings. Apps are installed once but run as separate instances per user (UID = userId × 100000 + appId). AAOS adds one key twist: <strong>Headless System User Mode (HSUM)</strong>.</p>
           <div class="glass"><div class="hd-wrap" id="hd-users"></div></div>
           <div class="table-wrap">
@@ -57,7 +57,7 @@
         </section>
 
         <section class="doc-section" id="architecture" data-title="User management architecture">
-          <div class="sec-head"><h2><span class="sec-num">4.2</span>User management architecture</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.2</span>User management architecture</h2></div>
           <p>Three layers cooperate on every user operation: the Android framework (which really creates/starts/stops users), <strong>CarUserService</strong> (car policy and orchestration) and the <strong>User HAL</strong> — a set of VHAL properties through which the vehicle can approve, veto or react to user changes.</p>
           <div class="glass"><div class="hd-wrap" id="hd-user-arch"></div></div>
           <div class="table-wrap">
@@ -81,7 +81,7 @@
         </section>
 
         <section class="doc-section" id="operations" data-title="Add, switch, remove users">
-          <div class="sec-head"><h2><span class="sec-num">4.3</span>User operations: add, switch, remove, start, guest</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.3</span>User operations: add, switch, remove, start, guest</h2></div>
           <p>Car apps (Settings, a profile picker, an OEM welcome app) use the system API <code>CarUserManager</code> rather than <code>UserManager</code> directly, so that CarService can apply car policy and involve the User HAL. All operations are asynchronous and require <code>signature|privileged</code> permissions such as <code>android.permission.MANAGE_USERS</code> / <code>CREATE_USERS</code>.</p>
           <div class="tabs" data-tabs>
             <div class="tab-list" role="tablist">
@@ -269,13 +269,13 @@ adb shell dumpsys car_service --services CarUserService
         </section>
 
         <section class="doc-section" id="switch-sim" data-title="User switch simulator">
-          <div class="sec-head"><h2><span class="sec-num">4.4</span>User switch with vehicle profile sync (interactive)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.4</span>User switch with vehicle profile sync (interactive)</h2></div>
           <p>Follow a switch from driver <strong>Alex (user 10)</strong> to driver <strong>Bea (user 11)</strong> — from the profile picker, through CarUserService and the User HAL, to the seat module and the cluster restoring Bea's settings.</p>
           <div id="switch-seq"></div>
         </section>
 
         <section class="doc-section" id="sync" data-title="Syncing profiles across ECUs">
-          <div class="sec-head"><h2><span class="sec-num">4.5</span>Syncing the profile across AVN, cluster & ECUs</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.5</span>Syncing the profile across AVN, cluster & ECUs</h2></div>
           <p>An Android user only owns what lives inside Android. A real “driver profile” spans many computers: the AVN/IVI (Android), the cluster VM, the seat and mirror modules, HVAC, HUD and the telematics backend. The key design decision is <strong>who stores each setting</strong> and <strong>what triggers the sync</strong>.</p>
 
           <h3>Profile identity mapping</h3>
@@ -322,7 +322,7 @@ adb shell dumpsys car_service --services CarUserService
         </section>
 
         <section class="doc-section" id="lifecycle" data-title="Lifecycle events & best practices">
-          <div class="sec-head"><h2><span class="sec-num">4.6</span>Lifecycle events & best practices for apps</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">8.6</span>Lifecycle events & best practices for apps</h2></div>
           <p>System apps and plug-in services observe user changes through <code>CarUserManager</code> lifecycle listeners (with an optional event filter):</p>
           <div class="table-wrap">
             <table class="t">

@@ -31,7 +31,7 @@
     can: ["Bus", "CAN / CAN FD", "The most common bus. Classic CAN ≤ 1 Mbit/s, 8 data bytes per frame. CAN FD: 2–8 Mbit/s data phase, up to 64 bytes per frame. Signals are described in DBC files.", ["DBC", "11/29-bit ID", "Arbitration"]],
     lin: ["Bus", "LIN", "Low-cost single-wire bus, ~19.2 kbit/s, master–slave. Used for seat motors, mirrors, ambient lighting, rain sensors.", ["Master/Slave", "Low cost"]],
     eth: ["Bus", "Automotive Ethernet", "100BASE-T1 / 1000BASE-T1 over a single twisted pair. High bandwidth for cameras, ADAS and zonal architectures. Service protocol SOME/IP, time sync via gPTP.", ["SOME/IP", "TSN", "Zonal"]],
-    hvac: ["ECU", "HVAC ECU", "Controls the compressor, blower and blend doors. Receives the temperature setpoint over CAN and reports the actual state. It is the target of the Module 04 trace.", ["Climate", "Blend door"]],
+    hvac: ["ECU", "HVAC ECU", "Controls the compressor, blower and blend doors. Receives the temperature setpoint over CAN and reports the actual state. It is the target of the Module 02 signal-flow trace.", ["Climate", "Blend door"]],
     bcm: ["ECU", "Body Control Module", "Doors, locks, lights, wipers, windows. Source of properties such as DOOR_LOCK and HEADLIGHTS_STATE.", ["Doors", "Lights"]],
     vcu: ["ECU", "VCU / ECM", "Engine/e-motor and transmission control. Source of PERF_VEHICLE_SPEED, GEAR_SELECTION, EV_BATTERY_LEVEL.", ["Powertrain", "Gear"]],
     adas: ["ECU", "ADAS", "Driver assistance: radar, cameras, lane keeping. Android 14 adds a family of ADAS properties (e.g. LANE_KEEP_ASSIST_ENABLED).", ["Radar", "Lane keep"]],

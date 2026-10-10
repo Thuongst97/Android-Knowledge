@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 02.5</span></nav>
-          <div class="eyebrow">Module 02.5 · Foundations</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span></nav>
+          <div class="eyebrow">Module 03 · Foundations</div>
           <h1>Core Android Techniques</h1>
           <p class="lead">CarService, the VHAL client, every Car API callback and every plug-in service are built from the same few Android primitives: <strong>Binder</strong> for talking between processes, <strong>Handler / Looper / MessageQueue</strong> for scheduling work on a thread, and the <strong>process model</strong> that Zygote and init set up. Master these and the rest of AAOS stops looking like magic.</p>
           <div class="page-meta"><span>⏱ 35 min read</span><span>🎯 Beginner → Intermediate</span><span>📂 frameworks/native/libs/binder · frameworks/base/core/java/android/os</span></div>
         </header>
 
         <section class="doc-section" id="anatomy" data-title="Anatomy of a process">
-          <div class="sec-head"><h2><span class="sec-num">2.5.1</span>Anatomy of an Android process</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.1</span>Anatomy of an Android process</h2></div>
           <p>Every app — and CarService itself — is a Linux process forked from Zygote, running the ART runtime, with a handful of important threads. Knowing <em>which thread runs your code</em> explains most AAOS bugs: frozen UIs, ANRs, races in callbacks and deadlocks across services.</p>
           <div class="glass"><div class="hd-wrap" id="hd-process"></div></div>
           <div class="table-wrap">
@@ -45,7 +45,7 @@
         </section>
 
         <section class="doc-section" id="binder" data-title="Binder IPC">
-          <div class="sec-head"><h2><span class="sec-num">2.5.2</span>Binder IPC</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.2</span>Binder IPC</h2></div>
           <p>Android processes are isolated by the kernel: they cannot read each other's memory. <strong>Binder</strong> is the kernel driver plus user-space libraries that let one process call a method on an object living in another process, as if it were local — while the kernel stamps every call with the caller's real identity.</p>
           <div class="callout analogy">
             <div class="ci">🎭</div>
@@ -271,7 +271,7 @@ public class TelemetryClient {
         </section>
 
         <section class="doc-section" id="looper" data-title="Handler, Looper & MessageQueue">
-          <div class="sec-head"><h2><span class="sec-num">2.5.3</span>Handler, Looper & MessageQueue</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.3</span>Handler, Looper & MessageQueue</h2></div>
           <p>Binder moves work <em>between processes</em>. Handler/Looper moves work <em>between threads</em> — and serializes it on one thread. The main thread of every Android app is simply a thread running a <code>Looper</code>.</p>
           <div class="grid grid-3">
             <div class="glass card"><h4 class="c-blue">MessageQueue</h4><p class="small">A queue of <code>Message</code>s <strong>ordered by due time</strong> (<code>when</code>, in <code>SystemClock.uptimeMillis()</code>). When nothing is due, the thread sleeps in the kernel (epoll) — no busy waiting.</p></div>
@@ -351,7 +351,7 @@ worker.quitSafely();                                        // finishes due mess
         </section>
 
         <section class="doc-section" id="threading" data-title="Threading rules for AAOS code">
-          <div class="sec-head"><h2><span class="sec-num">2.5.4</span>Threading rules for AAOS code</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.4</span>Threading rules for AAOS code</h2></div>
           <p>Binder and Looper meet constantly in car code: a callback arrives from CarService on a binder thread, and the result must be shown on the main thread. These rules prevent most production bugs:</p>
           <div class="table-wrap">
             <table class="t">
@@ -375,7 +375,7 @@ worker.quitSafely();                                        // finishes due mess
         </section>
 
         <section class="doc-section" id="process" data-title="Init, Zygote & system_server">
-          <div class="sec-head"><h2><span class="sec-num">2.5.5</span>Process model: init, Zygote & system_server</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.5</span>Process model: init, Zygote & system_server</h2></div>
           <ol class="steps-list">
             <li><b>Kernel → init (PID 1)</b><code>init</code> parses <code>*.rc</code> files, mounts partitions, sets system properties and starts native services (<code>servicemanager</code>, <code>hwservicemanager</code>, <code>vndservicemanager</code>, HALs such as the VHAL in <code>class early_hal</code>).</li>
             <li><b>Zygote</b>Starts the ART runtime and preloads common classes and resources once. Every Java process is then created by <strong>forking</strong> Zygote — fast startup and shared memory pages.</li>
@@ -404,7 +404,7 @@ on property:persist.vendor.oem.telemetry.enabled=1
         </section>
 
         <section class="doc-section" id="components" data-title="App components & IPC patterns">
-          <div class="sec-head"><h2><span class="sec-num">2.5.6</span>App components & IPC patterns</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.6</span>App components & IPC patterns</h2></div>
           <div class="table-wrap">
             <table class="t">
               <thead><tr><th>Component</th><th>Purpose</th><th>IPC underneath</th><th>Where you meet it in AAOS</th></tr></thead>
@@ -420,7 +420,7 @@ on property:persist.vendor.oem.telemetry.enabled=1
         </section>
 
         <section class="doc-section" id="properties" data-title="System properties">
-          <div class="sec-head"><h2><span class="sec-num">2.5.7</span>System properties</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.7</span>System properties</h2></div>
           <p>System properties are global key–value strings managed by <code>init</code>, readable by any process and writable only by domains SELinux allows. They are used for build facts and simple configuration flags — not for runtime data exchange (use Binder for that).</p>
           <div class="table-wrap">
             <table class="t">
@@ -437,7 +437,7 @@ on property:persist.vendor.oem.telemetry.enabled=1
         </section>
 
         <section class="doc-section" id="pitfalls" data-title="Common pitfalls">
-          <div class="sec-head"><h2><span class="sec-num">2.5.8</span>Common pitfalls (and how AAOS amplifies them)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">3.8</span>Common pitfalls (and how AAOS amplifies them)</h2></div>
           <div class="grid grid-2">
             <div class="glass card"><h4 class="c-red">Blocking Binder call on the main thread</h4><p class="small">The remote side may be waiting on the vehicle bus or a slow ECU — your UI freezes. Use async APIs or a worker thread.</p></div>
             <div class="glass card"><h4 class="c-red">Forgetting CarService can restart</h4><p class="small">CarService is updatable and may crash/restart: handle <code>ready = false</code> in <code>Car.createCar</code> listeners and re-acquire managers.</p></div>

@@ -81,7 +81,7 @@
         ["hardware/interfaces/automotive/vehicle/aidl/impl/vhal", "DefaultVehicleHal"],
         ["hardware/interfaces/automotive/vehicle/aidl/impl/hardware/include/IVehicleHardware.h", "Interface for OEMs"],
         ["hardware/interfaces/automotive/vehicle/aidl/impl/fake_impl", "FakeVehicleHardware (emulator)"],
-        ["vendor/&lt;oem&gt;/hardware/vehicle", "OEM implementation (see Module 05)"],
+        ["vendor/&lt;oem&gt;/hardware/vehicle", "OEM implementation (see Module 09)"],
       ],
       flow: "<code>DefaultVehicleHal::setValues()</code> validates the request, stores it in the pending pool and calls <code>IVehicleHardware::setValues()</code>. The OEM code encodes the float 24.0 into CAN bytes and writes them to a socket/SPI. Results come back via <code>SetValuesCallback</code>; new values from the bus are pushed up via <code>PropertyChangeCallback</code>.",
       analogy: "The VHAL is the <strong>interpreter at a multilingual conference</strong>: it hears “HVAC_TEMPERATURE_SET = 24.0 for the left seat” in Android-speak and repeats it in the carmaker's CAN dialect: “frame 0x3A2, byte 1 = 0x30”. Every carmaker speaks a different dialect, so every OEM hires its own interpreter.",

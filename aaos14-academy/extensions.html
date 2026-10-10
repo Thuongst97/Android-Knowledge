@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 06</span></nav>
-          <div class="eyebrow">Module 06 · Customization</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 10</span></nav>
+          <div class="eyebrow">Module 10 · Customization</div>
           <h1>OEM Extensibility: System & Plug-in Services</h1>
           <p class="lead">Every carmaker needs its own services, policies and look — but forking AOSP makes every Android upgrade painful. AAOS offers a ladder of extension mechanisms, from “change a value in an XML overlay” to “add a brand-new system service”. This module explains each rung, when to use it and exactly how to wire it up.</p>
           <div class="page-meta"><span>⏱ 35 min read</span><span>🎯 Intermediate → Advanced</span><span>📂 packages/services/Car · frameworks/base · device/&lt;oem&gt;</span></div>
         </header>
 
         <section class="doc-section" id="extension-map" data-title="Extension points map">
-          <div class="sec-head"><h2><span class="sec-num">6.1</span>Extension points map</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.1</span>Extension points map</h2></div>
           <p>Micro tags such as <code class="mtag">[Config]</code>, <code class="mtag">[Plug-in]</code> or <code class="mtag">[Policy]</code> mark where an OEM can plug in without (or with minimal) changes to AOSP source. The guiding principle: <strong>prefer configuration over code, and plug-ins over forks</strong>.</p>
           <div class="glass"><div class="hd-wrap" id="hd-ext"></div></div>
 
@@ -55,14 +55,14 @@
         </section>
 
         <section class="doc-section" id="decision" data-title="Which mechanism should I use?">
-          <div class="sec-head"><h2><span class="sec-num">6.2</span>Which mechanism should I use?</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.2</span>Which mechanism should I use?</h2></div>
           <p>Pick the statement that best describes what you need:</p>
           <div class="ext-pick" id="ext-pick"></div>
           <div class="ext-answer" id="ext-answer" aria-live="polite"></div>
         </section>
 
         <section class="doc-section" id="overlays" data-title="Configuration via overlays (RRO)">
-          <div class="sec-head"><h2><span class="sec-num">6.3</span><code class="mtag">[Config]</code> Configuration via overlays (RRO)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.3</span><code class="mtag">[Config]</code> Configuration via overlays (RRO)</h2></div>
           <p>A <strong>Runtime Resource Overlay</strong> is a resource-only APK that replaces resource values (<code>bool</code>, <code>integer</code>, <code>string</code>, <code>string-array</code>, colors, dimensions, drawables, layouts) of a <em>target</em> package at runtime — without touching the target's code. AAOS is designed around this: most CarService behavior, occupant zones, plug-in lists and SystemUI layout are read from overlayable resources.</p>
           <div class="callout analogy">
             <div class="ci">🎭</div>
@@ -150,7 +150,7 @@ PRODUCT_PACKAGES += \
         </section>
 
         <section class="doc-section" id="plugin-services" data-title="CarService plug-in services">
-          <div class="sec-head"><h2><span class="sec-num">6.4</span><code class="mtag">[Plug-in]</code> CarService plug-in services (<code>config_earlyStartupServices</code>)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.4</span><code class="mtag">[Plug-in]</code> CarService plug-in services (<code>config_earlyStartupServices</code>)</h2></div>
           <p>CarService contains a component called <strong><code>VendorServiceController</code></strong>. At startup it reads the <code>config_earlyStartupServices</code> array and, for each entry, starts or binds an OEM service <strong>as the right Android user, at the right moment</strong>, re-binding it if it crashes and following user switches. This is the official way to “plug” OEM services into the car's lifecycle without modifying CarService.</p>
           <div class="formula" style="font-size:.88rem">
             <span class="var">package</span>/<span class="var">.ServiceClass</span>#bind=<span class="c-green">bind|start|startForeground</span>,user=<span class="c-blue">system|foreground|all|visible|backgroundVisible</span>,trigger=<span class="c-amber">asap|userUnlocked|userPostUnlocked|resume</span>
@@ -268,7 +268,7 @@ public class TelemetryService extends Service {
         </section>
 
         <section class="doc-section" id="oem-car-service" data-title="OemCarService (Android 14)">
-          <div class="sec-head"><h2><span class="sec-num">6.5</span><code class="mtag">[Policy]</code> OemCarService — policy plug-in (Android 14)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.5</span><code class="mtag">[Policy]</code> OemCarService — policy plug-in (Android 14)</h2></div>
           <p>Before Android 14, changing <em>how</em> AAOS makes certain decisions (for example the audio focus interaction matrix) meant forking <code>CarAudioService</code> inside CarService — painful now that CarService is an updatable module. Android 14 introduces <strong>OemCarService</strong>: CarService delegates selected policy decisions over a stable, versioned API to an OEM-supplied service.</p>
           <div class="grid grid-2">
             <div class="glass card">
@@ -352,7 +352,7 @@ public class OemPolicyService extends OemCarService {
         </section>
 
         <section class="doc-section" id="system-service" data-title="Adding a system service">
-          <div class="sec-head"><h2><span class="sec-num">6.6</span><code class="mtag">[Fork]</code> Adding a system service to system_server</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.6</span><code class="mtag">[Fork]</code> Adding a system service to system_server</h2></div>
           <div class="callout warn">
             <div class="ci">⚠️</div>
             <div><span class="ct">Last resort</span>
@@ -451,12 +451,12 @@ allow platform_app oem_diagnostics_service:service_manager find;
         </section>
 
         <section class="doc-section" id="vendor-service" data-title="Vendor native services & HAL extensions">
-          <div class="sec-head"><h2><span class="sec-num">6.7</span><code class="mtag">[HAL]</code> Vendor native services & HAL extensions</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.7</span><code class="mtag">[HAL]</code> Vendor native services & HAL extensions</h2></div>
           <p>Hardware-facing extensions live on <code>/vendor</code>, behind a stable interface — exactly like the VHAL. Choose the right path:</p>
           <div class="grid grid-2">
             <div class="glass card">
               <h4 class="c-green">It is a vehicle signal → VHAL vendor property</h4>
-              <p class="small">Seat massage, ambient-light scene, drive-mode switch: add a <code>VENDOR</code>-group property to your VHAL. Apps reach it through <code>CarPropertyManager</code>, with CarService enforcing permissions. No new interface, no new service. See the <a href="code.html#checklist">checklist in Module 05</a>.</p>
+              <p class="small">Seat massage, ambient-light scene, drive-mode switch: add a <code>VENDOR</code>-group property to your VHAL. Apps reach it through <code>CarPropertyManager</code>, with CarService enforcing permissions. No new interface, no new service. See the <a href="code.html#checklist">checklist in Module 09</a>.</p>
             </div>
             <div class="glass card">
               <h4 class="c-blue">It is not a vehicle property → vendor AIDL service</h4>
@@ -507,7 +507,7 @@ aidl_interface {
         </section>
 
         <section class="doc-section" id="golden-rules" data-title="Golden rules">
-          <div class="sec-head"><h2><span class="sec-num">6.8</span>Golden rules for OEM extensions</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">10.8</span>Golden rules for OEM extensions</h2></div>
           <div class="grid grid-2">
             <div class="glass card"><h4 class="c-green">Config before code</h4><p class="small">If AOSP already reads a resource for it, overlay the resource. Search CarService's <code>config.xml</code> before writing a single line.</p></div>
             <div class="glass card"><h4 class="c-blue">Plug in, don't fork</h4><p class="small">Early-startup services, OemCarService and privileged apps survive Android upgrades with little or no merge work.</p></div>

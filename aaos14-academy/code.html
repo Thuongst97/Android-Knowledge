@@ -20,15 +20,15 @@
       <div class="content-inner" style="max-width:1200px">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 05</span></nav>
-          <div class="eyebrow">Module 05 · Hands-on</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 09</span></nav>
+          <div class="eyebrow">Module 09 · Hands-on</div>
           <h1>Example Code and Best Practices</h1>
-          <p class="lead">Three views of the same feature — reading vehicle speed and setting the HVAC temperature: from a Kotlin or Java app, through the AIDL contract, down to a C++ VHAL implementation in the AOSP source tree. Click any numbered line to read its explanation. Sections 5.4–5.8 then cover best practices for app and service code: Handler/Looper threading, service connections, retries and implementing a bound service.</p>
+          <p class="lead">Three views of the same feature — reading vehicle speed and setting the HVAC temperature: from a Kotlin or Java app, through the AIDL contract, down to a C++ VHAL implementation in the AOSP source tree. Click any numbered line to read its explanation. Sections 9.4–9.8 then cover best practices for app and service code: Handler/Looper threading, service connections, retries and implementing a bound service.</p>
           <div class="page-meta"><span>⏱ 60 min</span><span>🎯 Intermediate → Advanced</span><span>📦 android-14.0.0 · VHAL AIDL V2</span></div>
         </header>
 
         <section class="doc-section" id="overview" data-title="Overview">
-          <div class="sec-head"><h2><span class="sec-num">5.1</span>Overview</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.1</span>Overview</h2></div>
           <div class="grid grid-3">
             <div class="glass card"><h4 class="c-blue">① App (Kotlin · Java)</h4><p class="small">Connect to <code>Car</code>, subscribe to <code>PERF_VEHICLE_SPEED</code>, write <code>HVAC_TEMPERATURE_SET</code> with config checks. The HVAC part requires a privileged app.</p></div>
             <div class="glass card"><h4 style="color:#f472b6">② Contract (AIDL)</h4><p class="small"><code>IVehicle</code>, <code>IVehicleCallback</code> and the key parcelables. You <strong>don't edit</strong> these files — read them to understand the contract.</p></div>
@@ -37,7 +37,7 @@
         </section>
 
         <section class="doc-section" id="explorer" data-title="Annotated code explorer">
-          <div class="sec-head"><h2><span class="sec-num">5.2</span>Annotated code explorer</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.2</span>Annotated code explorer</h2></div>
           <div class="tabs" data-tabs id="code-tabs">
             <div class="tab-list" role="tablist">
               <button data-tab="kotlin" aria-selected="true">Kotlin · CarPropertyManager</button>
@@ -59,7 +59,7 @@
         </section>
 
         <section class="doc-section" id="checklist" data-title="Checklist: adding a property">
-          <div class="sec-head"><h2><span class="sec-num">5.3</span>Checklist: adding a new OEM property</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.3</span>Checklist: adding a new OEM property</h2></div>
           <p>Say you need a “seat massage mode” that is not in the standard property list:</p>
           <div class="table-wrap">
             <table class="t">
@@ -87,7 +87,7 @@
         </section>
 
         <section class="doc-section" id="bp-threading" data-title="Threading with Handler & Looper">
-          <div class="sec-head"><h2><span class="sec-num">5.4</span>Best practice: threading with Handler &amp; Looper</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.4</span>Best practice: threading with Handler &amp; Looper</h2></div>
           <p>Every Android thread can own one <strong>Looper</strong>: an endless loop that takes <code>Message</code>s and <code>Runnable</code>s from a <strong>MessageQueue</strong> and runs them one at a time. A <strong>Handler</strong> is the door into a specific Looper's queue. The main (UI) thread has a Looper already; for background work you create a <code>HandlerThread</code>, which is a thread that starts its own Looper.</p>
           <div class="grid grid-3">
             <div class="glass card"><h4 class="c-blue">Always name the Looper</h4><p class="small"><code>new Handler()</code> without a Looper is deprecated since API 30: it silently binds to whatever thread created it, or crashes on a thread without one. Write <code>Handler(Looper.getMainLooper())</code> or <code>Handler(thread.looper)</code>.</p></div>
@@ -245,7 +245,7 @@ public class HvacActivity extends Activity {
         </section>
 
         <section class="doc-section" id="bp-binding" data-title="Handling service connections">
-          <div class="sec-head"><h2><span class="sec-num">5.5</span>Best practice: handling service connections</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.5</span>Best practice: handling service connections</h2></div>
           <p>A bound service lives in another process that can crash, be updated or be killed for memory at any moment. A robust client treats “connected” as a state that comes and goes, not as something that happens once. The four <code>ServiceConnection</code> callbacks each mean something different:</p>
           <div class="table-wrap">
             <table class="t">
@@ -269,7 +269,7 @@ public class HvacActivity extends Activity {
 class ClimateClient(private val context: Context) : AutoCloseable {
 
     private val main = Handler(Looper.getMainLooper())
-    private val backoff = Backoff(initialMs = 500, maxMs = 30_000)    // see 5.6
+    private val backoff = Backoff(initialMs = 500, maxMs = 30_000)    // see 9.6
     @Volatile private var service: IClimateService? = null
     private var bound = false
 
@@ -363,7 +363,7 @@ public final class ClimateClient implements AutoCloseable {
 
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final Backoff backoff = new Backoff(500, 30_000);         // see 5.6
+    private final Backoff backoff = new Backoff(500, 30_000);         // see 9.6
     private volatile IClimateService service;
     private boolean bound;
 
@@ -466,7 +466,7 @@ public final class ClimateClient implements AutoCloseable {
         </section>
 
         <section class="doc-section" id="bp-retry" data-title="Retry with backoff">
-          <div class="sec-head"><h2><span class="sec-num">5.6</span>Best practice: retry with backoff</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.6</span>Best practice: retry with backoff</h2></div>
           <p>A retry is a bet that the failure is temporary. Make that bet only for errors that are actually transient, wait longer after each failure, add jitter so that many clients do not all retry at the same instant after a CarService or VHAL restart, and stop when the component goes away.</p>
           <div class="table-wrap">
             <table class="t">
@@ -594,7 +594,7 @@ final class RetryingWrite {
         </section>
 
         <section class="doc-section" id="bp-service" data-title="Implementing a service">
-          <div class="sec-head"><h2><span class="sec-num">5.7</span>Best practice: implementing a service</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.7</span>Best practice: implementing a service</h2></div>
           <p>The server side of <code>IClimateService</code> from 5.5. Two thread rules shape it: lifecycle methods (<code>onCreate</code>, <code>onStartCommand</code>, <code>onBind</code>) run on the <strong>main thread</strong>, and AIDL methods run on the <strong>Binder thread pool</strong>, several at once. So the service does no blocking work in lifecycle methods and funnels all state changes through one <code>HandlerThread</code>.</p>
 
           <div class="tabs" data-tabs>
@@ -760,13 +760,13 @@ public final class ClimateService extends Service {
           <div class="callout analogy">
             <div class="ci">🧭</div>
             <div><span class="ct">Where should OEM logic live?</span>
-              <p>A privileged app service like this one suits OEM features that apps bind to. For logic that must start with CarService, or that extends system policy, see <a href="extensions.html#decision">Module 06 · Which mechanism should I use?</a></p>
+              <p>A privileged app service like this one suits OEM features that apps bind to. For logic that must start with CarService, or that extends system policy, see <a href="extensions.html#decision">Module 10 · Which mechanism should I use?</a></p>
             </div>
           </div>
         </section>
 
         <section class="doc-section" id="bp-rules" data-title="Best-practice checklist">
-          <div class="sec-head"><h2><span class="sec-num">5.8</span>Best-practice checklist</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">9.8</span>Best-practice checklist</h2></div>
           <div class="table-wrap">
             <table class="t">
               <thead><tr><th>Area</th><th>Rule</th><th>Typical bug when ignored</th></tr></thead>

@@ -28,7 +28,7 @@
         </header>
 
         <section class="doc-section" id="diagrams" data-title="High-level architecture diagrams">
-          <div class="sec-head"><h2><span class="sec-num">2.0</span>High-level architecture diagrams</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.1</span>High-level architecture diagrams</h2></div>
           <p>Three complementary views of the same system. Start with the <strong>system overview</strong> (what exists), then zoom into <strong>CarService</strong> (where vehicle policy lives), then the <strong>partitions & processes</strong> view (who ships what, and where the process boundaries are). Hover a component to trace its direct connections (everything else dims) and read a one-line description.</p>
           <div class="tabs" data-tabs>
             <div class="tab-list" role="tablist">
@@ -52,7 +52,7 @@
         </section>
 
         <section class="doc-section" id="overview" data-title="Five layers at a glance">
-          <div class="sec-head"><h2><span class="sec-num">2.1</span>Five layers at a glance</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.2</span>Five layers at a glance</h2></div>
           <p>This is the map you will keep coming back to. The dashed regions are the four worlds of the stack — <strong>Android user space</strong>, <strong>system services</strong>, the <strong>native HAL</strong> on <code>/vendor</code> and the <strong>MCU / vehicle bus</strong> — separated by the L3 contract (the Treble boundary). The glowing connectors show how a request travels down (solid dots) and how vehicle events come back up (hollow dots). Click a layer to open it in the explorer; hover a component for a one-line explanation.</p>
           <div id="stack5" class="s5" aria-label="AAOS 14 five-layer architecture"></div>
           <div class="s5-legend"><span style="color:var(--dg-cyan)">Request / command (down)</span><span class="hollow" style="color:var(--dg-cyan)">Vehicle event / callback (up)</span><span style="color:var(--dg-amber)">Treble contract · hardware drivers</span></div>
@@ -79,14 +79,14 @@
         </section>
 
         <section class="doc-section" id="signal-flow" data-title="End-to-end signal flow (HVAC)">
-          <div class="sec-head"><h2><span class="sec-num">2.2</span>End-to-end signal flow: A/C 22 °C → 24 °C</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.3</span>End-to-end signal flow: A/C 22 °C → 24 °C</h2></div>
           <p>The same five layers in motion. Press <strong>Play</strong> to send the command from the touchscreen down to the HVAC ECU and watch the confirmation travel back up. Click any node to jump to it and see the exact payload it handles.</p>
           <div class="sf glass" id="signal-flow-diagram"></div>
           <p class="small muted mt">Class and method names follow AOSP Android 14. The CAN IDs (0x3A2 / 0x3A3) and byte layout are hypothetical — every OEM defines its own in a DBC file.</p>
         </section>
 
         <section class="doc-section" id="explorer" data-title="Layer explorer">
-          <div class="sec-head"><h2><span class="sec-num">2.3</span>Layer explorer (interactive)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.4</span>Layer explorer (interactive)</h2></div>
           <p>Choose a layer on the left. Each layer has four tabs: <em>Components</em>, <em>In the source tree</em>, <em>Data flow</em> and <em>Analogy</em>. Use <kbd>↑</kbd>/<kbd>↓</kbd> to switch layers.</p>
           <div class="layers mt">
             <div class="layer-stack" id="layer-stack" role="listbox" aria-label="Architecture layers"></div>
@@ -95,7 +95,7 @@
         </section>
 
         <section class="doc-section" id="treble" data-title="Treble boundary & VINTF">
-          <div class="sec-head"><h2><span class="sec-num">2.4</span>Treble boundary & VINTF</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.5</span>Treble boundary & VINTF</h2></div>
           <p>Since Android 8 (Project Treble), Google's framework (<code>/system</code>) and OEM/SoC-vendor hardware code (<code>/vendor</code>) are separated by <strong>stable, versioned</strong> interfaces. For AAOS the most important one is <code>android.hardware.automotive.vehicle.IVehicle</code>.</p>
           <div class="grid grid-2">
             <div class="glass card">
@@ -116,7 +116,7 @@
         </section>
 
         <section class="doc-section" id="property-model" data-title="The Vehicle Property model">
-          <div class="sec-head"><h2><span class="sec-num">2.5</span>The Vehicle Property model</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">2.6</span>The Vehicle Property model</h2></div>
           <p>All App ⇄ VHAL communication boils down to a single concept: the <strong>Vehicle Property</strong>. Each property has a 32-bit ID that encodes its own meaning:</p>
           <div class="formula">
             <span class="var">propId</span> <span class="op">=</span> group<span class="muted small">[31:28]</span> <span class="op">|</span> areaType<span class="muted small">[27:24]</span> <span class="op">|</span> valueType<span class="muted small">[23:16]</span> <span class="op">|</span> id<span class="muted small">[15:0]</span>

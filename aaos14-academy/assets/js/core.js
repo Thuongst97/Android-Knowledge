@@ -33,7 +33,7 @@
       ],
     },
     {
-      id: "fundamentals", file: "fundamentals.html", num: "02.5", group: "Foundations",
+      id: "fundamentals", file: "fundamentals.html", num: "03", group: "Foundations",
       title: "Core Android Techniques", short: "Core Android Techniques", icon: "⚙️", accent: "#34d399",
       desc: "Binder IPC, Handler/Looper/MessageQueue, threading rules, Zygote & process model, components, system properties.",
       sections: [
@@ -48,7 +48,7 @@
       ],
     },
     {
-      id: "power", file: "power.html", num: "03.1", group: "Subsystems",
+      id: "power", file: "power.html", num: "04", group: "Subsystems",
       title: "Power Management & Garage Mode", short: "Power & Garage Mode", icon: "🔋", accent: "#34d399",
       desc: "Power state machine, Suspend-to-RAM, Hibernation and Garage Mode.",
       sections: [
@@ -60,7 +60,7 @@
       ],
     },
     {
-      id: "audio", file: "audio.html", num: "03.2", group: "Subsystems",
+      id: "audio", file: "audio.html", num: "05", group: "Subsystems",
       title: "Multi-Zone Audio", short: "Multi-Zone Audio", icon: "🔊", accent: "#d4af37",
       desc: "Audio zones, volume groups, audio focus and routing in AAOS 14.",
       sections: [
@@ -71,7 +71,7 @@
       ],
     },
     {
-      id: "displays", file: "displays.html", num: "03.3", group: "Subsystems",
+      id: "displays", file: "displays.html", num: "06", group: "Subsystems",
       title: "Multi-Display & Occupant Zones", short: "Multi-Display & Occupants", icon: "🖥️", accent: "#70cff8",
       desc: "IVI, instrument cluster, passenger, RSE and CarOccupantZoneManager.",
       sections: [
@@ -82,7 +82,7 @@
       ],
     },
     {
-      id: "security", file: "security.html", num: "03.4", group: "Subsystems",
+      id: "security", file: "security.html", num: "07", group: "Subsystems",
       title: "Automotive Security & Sandboxing", short: "Security & Sandboxing", icon: "🛡️", accent: "#f87171",
       desc: "Car permissions, SEPolicy, VHAL access control, hardware isolation.",
       sections: [
@@ -94,7 +94,7 @@
       ],
     },
     {
-      id: "users", file: "users.html", num: "04", group: "Hands-on",
+      id: "users", file: "users.html", num: "08", group: "Hands-on",
       title: "Automotive Android User Profiles", short: "User Profiles", icon: "👤", accent: "#d4af37",
       desc: "Multi-user in AAOS: add/switch/remove users, User HAL, MUMD and profile sync to the cluster and ECUs.",
       sections: [
@@ -107,7 +107,7 @@
       ],
     },
     {
-      id: "code", file: "code.html", num: "05", group: "Hands-on",
+      id: "code", file: "code.html", num: "09", group: "Hands-on",
       title: "Example Code and Best Practices", short: "Example Code and Best Practices", icon: "💻", accent: "#34d399",
       desc: "Kotlin & Java CarPropertyManager, IVehicle.aidl, C++ VHAL, build & SEPolicy — plus best practices for threads, service connections and retries.",
       sections: [
@@ -122,7 +122,7 @@
       ],
     },
     {
-      id: "extensions", file: "extensions.html", num: "06", group: "Customization",
+      id: "extensions", file: "extensions.html", num: "10", group: "Customization",
       title: "OEM Extensibility: System & Plug-in Services", short: "OEM Extensibility", icon: "🧩", accent: "#a78bfa",
       desc: "How OEMs add system services, CarService plug-in services, OemCarService and overlay (RRO) configuration.",
       sections: [
@@ -402,7 +402,8 @@
         if (cur && domSections.length) {
           html += `<ul class="sb-sections">` + domSections.map((s) => {
             const title = s.dataset.title || ($("h2", s) || {}).textContent || s.id;
-            return `<li><a href="#${s.id}" data-target="${s.id}">${esc(title)}</a></li>`;
+            const num = (($(".sec-num", s) || {}).textContent || "").trim();
+            return `<li><a href="#${s.id}" data-target="${s.id}">${/^\d/.test(num) ? `<span class="sb-snum">${esc(num)}</span>` : ""}<span>${esc(title)}</span></a></li>`;
           }).join("") + `</ul>`;
         }
       });
@@ -473,7 +474,11 @@
     sec.className = "doc-section";
     sec.id = "references";
     sec.dataset.title = "Official references";
-    sec.innerHTML = `<div class="sec-head"><h2><span class="sec-num">📚</span>Official references</h2></div>
+    // numbered as the page's last section (e.g. 3.9), like every other section
+    const page = SITE.find((p) => p.id === pageId);
+    const count = $$("section.doc-section .sec-num").filter((e) => /^\d/.test(e.textContent)).length;
+    const num = page && /^\d+$/.test(page.num) ? `${+page.num}.${count + 1}` : "📚";
+    sec.innerHTML = `<div class="sec-head"><h2><span class="sec-num">${num}</span>Official references</h2></div>
       <p class="small muted">Primary sources for the material on this page. Documentation evolves with each Android release — when in doubt, the AOSP source for your branch is the final authority.</p>
       <div class="ref-list">${keys.map((k) => {
         const [title, url] = R[k];

@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Power</span></nav>
-          <div class="eyebrow">Module 03.1 · Core Subsystems</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 04</span><span>/</span><span>Power</span></nav>
+          <div class="eyebrow">Module 04 · Core Subsystems</div>
           <h1>Power Management & Garage Mode</h1>
           <p class="lead">A phone has a battery and a user who presses the power button. A car has a 12V battery that must survive weeks in a parking lot, and Android must be “instantly on” when the driver opens the door. That is why AAOS has its own power state machine.</p>
           <div class="page-meta"><span>⏱ 20 min read</span><span>🎯 Intermediate</span><span>📂 service/src/com/android/car/power</span></div>
         </header>
 
         <section class="doc-section" id="overview" data-title="Power management overview">
-          <div class="sec-head"><h2><span class="sec-num">3.1.1</span>Overview</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">4.1</span>Overview</h2></div>
           <p>The authority over power <strong>does not live in Android</strong> but in the MCU (which knows the key state, doors and battery voltage). Android only “negotiates” with the MCU through two Vehicle Properties:</p>
           <div class="grid grid-2">
             <div class="glass card">
@@ -50,7 +50,7 @@
         </section>
 
         <section class="doc-section" id="state-machine" data-title="Interactive state machine">
-          <div class="sec-head"><h2><span class="sec-num">3.1.2</span>State machine (interactive)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">4.2</span>State machine (interactive)</h2></div>
           <p>Click a state to see its details; the related transitions light up.</p>
           <div class="sm-wrap mt">
             <div class="sm-svg glass" id="sm-svg"></div>
@@ -71,7 +71,7 @@
         </section>
 
         <section class="doc-section" id="state-table" data-title="States & VHAL signals">
-          <div class="sec-head"><h2><span class="sec-num">3.1.3</span>States & VHAL signals</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">4.3</span>States & VHAL signals</h2></div>
           <p>State constants in <code>CarPowerManager</code> (Android 14). <code>PRE_SHUTDOWN_PREPARE</code> and the <code>POST_*</code> states let listeners signal completion before CPMS moves on.</p>
           <div class="table-wrap">
             <table class="t">
@@ -99,7 +99,7 @@
         </section>
 
         <section class="doc-section" id="garage-mode" data-title="Garage Mode sequence">
-          <div class="sec-head"><h2><span class="sec-num">3.1.4</span>Garage Mode — sequence flow</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">4.4</span>Garage Mode — sequence flow</h2></div>
           <p>Garage Mode is the window <strong>after the ignition is turned off</strong> during which Android keeps running (screen dark, no audio) to do background work: downloading OTA updates, dex optimization, data sync. Apps schedule work with <code>JobScheduler</code> using <code>setRequiresDeviceIdle(true)</code> — in a car, “idle” means Garage Mode.</p>
           <div id="garage-seq" class="mt"></div>
           <div class="callout analogy">
@@ -131,7 +131,7 @@ context.getSystemService(JobScheduler.class).schedule(job);
         </section>
 
         <section class="doc-section" id="power-policy" data-title="Power Policy & Remote Access">
-          <div class="sec-head"><h2><span class="sec-num">3.1.5</span>Power Policy & Remote Access</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">4.5</span>Power Policy & Remote Access</h2></div>
           <p>A <strong>power policy</strong> defines <em>which components are enabled</em> in each state (AUDIO, DISPLAY, WIFI, BLUETOOTH, CELLULAR, LOCATION, MICROPHONE…). CPMS works with the <code>carpowerpolicyd</code> daemon to apply them. OEMs define policies in <code>/vendor/etc/automotive/power_policy.xml</code>.</p>
           <div class="table-wrap">
             <table class="t">
