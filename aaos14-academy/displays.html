@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Displays</span></nav>
-          <div class="eyebrow">Module 03.3 · Core Subsystems</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 06</span><span>/</span><span>Displays</span></nav>
+          <div class="eyebrow">Module 06 · Core Subsystems</div>
           <h1>Multi-Display & Occupant Zones</h1>
           <p class="lead">A premium car can have 5–7 screens. The question is not just “what to draw on which screen”, but “who owns this screen, where does touch input go, and which speakers play its audio”. The answer is the <strong>Occupant Zone</strong>.</p>
           <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Intermediate</span><span>📂 CarOccupantZoneService · CarInputService</span></div>
         </header>
 
         <section class="doc-section" id="display-types" data-title="Display types">
-          <div class="sec-head"><h2><span class="sec-num">3.3.1</span>Display types</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">6.1</span>Display types</h2></div>
           <div class="table-wrap">
             <table class="t">
               <thead><tr><th>Display</th><th>Display type</th><th>Rendered by</th><th>Characteristics</th></tr></thead>
@@ -45,7 +45,7 @@
         </section>
 
         <section class="doc-section" id="occupant-zones" data-title="Interactive occupant zones">
-          <div class="sec-head"><h2><span class="sec-num">3.3.2</span>Occupant Zone Manager (interactive)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">6.2</span>Occupant Zone Manager (interactive)</h2></div>
           <p><code>CarOccupantZoneManager</code> answers: for a given <em>occupant</em> (occupant zone), which displays, Android user, audio zone and input types belong to them? Click a seat or a screen (the small rectangles) in the diagram.</p>
           <div class="cabin mt">
             <div class="car-top glass" id="disp-cabin"></div>
@@ -123,7 +123,7 @@ ozm.registerOccupantZoneConfigChangeListener(changeFlags -> {
         </section>
 
         <section class="doc-section" id="input-routing" data-title="Input routing">
-          <div class="sec-head"><h2><span class="sec-num">3.3.3</span>Input routing per zone</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">6.3</span>Input routing per zone</h2></div>
           <p>Input arrives from two sources that take different paths:</p>
           <div class="grid grid-2">
             <div class="glass card">
@@ -144,7 +144,7 @@ ozm.registerOccupantZoneConfigChangeListener(changeFlags -> {
         </section>
 
         <section class="doc-section" id="mumd" data-title="Multi-User Multi-Display">
-          <div class="sec-head"><h2><span class="sec-num">3.3.4</span>Multi-User Multi-Display (MUMD) — Android 14</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">6.4</span>Multi-User Multi-Display (MUMD) — Android 14</h2></div>
           <p>Before Android 14 only <strong>one</strong> Android user ran in the foreground; passenger screens had to share the driver's user. Android 14 introduces <strong>visible background users</strong>: each passenger zone runs its own user, visible simultaneously on that zone's display.</p>
           <div class="table-wrap">
             <table class="t">

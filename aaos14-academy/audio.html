@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Audio</span></nav>
-          <div class="eyebrow">Module 03.2 · Core Subsystems</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 05</span><span>/</span><span>Audio</span></nav>
+          <div class="eyebrow">Module 05 · Core Subsystems</div>
           <h1>Multi-Zone Audio</h1>
           <p class="lead">In a car, the driver hears navigation prompts, the front passenger is on a call and the kids in the back watch a movie on headphones — all at once. AAOS solves this with audio zones, volume groups, per-zone audio focus and context-based routing.</p>
           <div class="page-meta"><span>⏱ 20 min read</span><span>🎯 Intermediate</span><span>📂 service/src/com/android/car/audio</span></div>
         </header>
 
         <section class="doc-section" id="concepts" data-title="Core concepts">
-          <div class="sec-head"><h2><span class="sec-num">3.2.1</span>Core concepts</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">5.1</span>Core concepts</h2></div>
           <p>On a phone, audio follows “stream types” (STREAM_MUSIC, STREAM_RING…) and almost everything comes out of the same speaker. AAOS replaces this with a hierarchy:</p>
           <div class="formula" style="font-size:.9rem">
             AudioAttributes.usage <span class="op">→</span> Audio Context <span class="op">→</span> Volume Group <span class="op">→</span> Output Device (bus) <span class="op">∈</span> Audio Zone
@@ -48,7 +48,7 @@
         </section>
 
         <section class="doc-section" id="zones" data-title="Interactive audio zones">
-          <div class="sec-head"><h2><span class="sec-num">3.2.2</span>Audio zones (interactive)</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">5.2</span>Audio zones (interactive)</h2></div>
           <p>Pick a seat to see the matching zone configuration: devices, volume groups and occupant zone. Drag the sliders to see that each zone's volume is independent.</p>
           <div class="cabin mt">
             <div class="car-top glass" id="audio-cabin"></div>
@@ -63,7 +63,7 @@
         </section>
 
         <section class="doc-section" id="focus" data-title="Audio focus policy">
-          <div class="sec-head"><h2><span class="sec-num">3.2.3</span>Audio focus policy</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">5.3</span>Audio focus policy</h2></div>
           <p>When an app calls <code>AudioManager.requestAudioFocus()</code>, the zone's <code>CarAudioFocus</code> looks up an <strong>interaction matrix</strong> between the context currently holding focus and the context requesting it. There are three outcomes:</p>
           <div class="grid grid-3">
             <div class="glass card"><h4 class="fx-E">EXCLUSIVE</h4><p class="small">The requester gets focus; the holder loses it (transiently or permanently). Example: an incoming call while music plays.</p></div>
@@ -86,7 +86,7 @@
         </section>
 
         <section class="doc-section" id="routing" data-title="Routing & XML configuration">
-          <div class="sec-head"><h2><span class="sec-num">3.2.4</span>Routing & XML configuration</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">5.4</span>Routing & XML configuration</h2></div>
           <p>The routing path when a media app plays music on a rear-seat screen:</p>
           <ol>
             <li>The app creates an <code>AudioTrack</code>/<code>MediaPlayer</code> with <code>AudioAttributes.USAGE_MEDIA</code>. The app runs as the Android user of that zone (MUMD) or its UID is mapped to the zone.</li>

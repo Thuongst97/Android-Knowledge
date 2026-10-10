@@ -20,15 +20,15 @@
       <div class="content-inner">
 
         <header class="page-hero">
-          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Security</span></nav>
-          <div class="eyebrow">Module 03.4 · Core Subsystems</div>
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 07</span><span>/</span><span>Security</span></nav>
+          <div class="eyebrow">Module 07 · Core Subsystems</div>
           <h1>Automotive Security & Sandboxing</h1>
           <p class="lead">On a phone, a malicious app can steal data. In a car, it could unlock the doors or distract the driver. That is why AAOS stacks several layers of defense from the app all the way down to the CAN bus.</p>
           <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Intermediate</span><span>📂 car-lib/…/Car.java · system/sepolicy</span></div>
         </header>
 
         <section class="doc-section" id="defense-in-depth" data-title="Defense in depth">
-          <div class="sec-head"><h2><span class="sec-num">3.4.1</span>Defense in depth</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">7.1</span>Defense in depth</h2></div>
           <p>A request to “set 24 °C” must pass every layer below. An attacker would have to break <em>all</em> of them to send an unauthorized command to the vehicle.</p>
           <div class="defense">
             <div class="defense-layer glass" style="--dc:#38bdf8"><div class="dl-n">1</div><div><h4>App sandbox</h4><p>Each app runs with its own UID and SELinux domain (<code>untrusted_app</code> / <code>platform_app</code> / <code>priv_app</code>). No direct access to devices or HAL services.</p></div></div>
@@ -47,7 +47,7 @@
         </section>
 
         <section class="doc-section" id="permissions" data-title="Car permissions">
-          <div class="sec-head"><h2><span class="sec-num">3.4.2</span>Car permissions</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">7.2</span>Car permissions</h2></div>
           <p>Automotive permissions use the <code>android.car.permission.</code> prefix and are exposed as constants in <code>android.car.Car</code> (e.g. <code>Car.PERMISSION_CONTROL_CAR_CLIMATE</code> = <code>"android.car.permission.CONTROL_CAR_CLIMATE"</code>). The protection level decides <em>who</em> can be granted each one:</p>
           <div class="table-wrap">
             <table class="t">
@@ -83,7 +83,7 @@
         </section>
 
         <section class="doc-section" id="permission-sim" data-title="Permission check simulator">
-          <div class="sec-head"><h2><span class="sec-num">3.4.3</span>Permission check simulator</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">7.3</span>Permission check simulator</h2></div>
           <p>Choose an app type and its permission setup, and see whether CarService allows or denies each operation.</p>
           <div class="perm-check glass card">
             <div>
@@ -105,7 +105,7 @@
         </section>
 
         <section class="doc-section" id="sepolicy" data-title="SEPolicy & VHAL access">
-          <div class="sec-head"><h2><span class="sec-num">3.4.4</span>SEPolicy & VHAL access control</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">7.4</span>SEPolicy & VHAL access control</h2></div>
           <p>AOSP defines the HAL attribute <code>hal_vehicle</code>, split into two roles: <code>hal_vehicle_server</code> (the VHAL process) and <code>hal_vehicle_client</code> (CarService — domain <code>carservice_app</code>). The <code>IVehicle/default</code> service is labeled <code>hal_vehicle_service</code>; only valid clients may <code>find</code> it in servicemanager.</p>
           <script type="text/plain" data-code data-lang="conf" data-file="system/sepolicy (abridged, illustrative)" data-label="SEPolicy">
 # public/attributes — HAL attribute for the Vehicle HAL
@@ -134,7 +134,7 @@ android.hardware.automotive.vehicle.IVehicle/default   u:object_r:hal_vehicle_se
         </section>
 
         <section class="doc-section" id="isolation" data-title="Hardware isolation">
-          <div class="sec-head"><h2><span class="sec-num">3.4.5</span>Hardware isolation & compliance</h2></div>
+          <div class="sec-head"><h2><span class="sec-num">7.5</span>Hardware isolation & compliance</h2></div>
           <div class="grid grid-2">
             <div class="glass card"><h4 class="c-blue">Hypervisor</h4><p class="small">IVI (AAOS) and the cluster run in separate VMs. Even if Android crashes or is compromised, the speedometer and warning lights keep working.</p></div>
             <div class="glass card"><h4 class="c-purple">MCU as a controlled one-way gate</h4><p class="small">The SoC has no direct path to the chassis bus. The MCU forwards only permitted signals, with plausibility checks and rate limiting.</p></div>
