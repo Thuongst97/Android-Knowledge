@@ -108,12 +108,17 @@
     },
     {
       id: "code", file: "code.html", num: "05", group: "Hands-on",
-      title: "Practical Code Examples", short: "Code Examples", icon: "💻", accent: "#34d399",
-      desc: "Kotlin CarPropertyManager, IVehicle.aidl, C++ VHAL, build & SEPolicy.",
+      title: "Example Code and Best Practices", short: "Example Code and Best Practices", icon: "💻", accent: "#34d399",
+      desc: "Kotlin & Java CarPropertyManager, IVehicle.aidl, C++ VHAL, build & SEPolicy — plus best practices for threads, service connections and retries.",
       sections: [
         ["overview", "Overview", "code"],
-        ["explorer", "Annotated code explorer", "kotlin aidl cpp android.bp vintf sepolicy manifest"],
+        ["explorer", "Annotated code explorer", "kotlin java aidl cpp android.bp vintf sepolicy manifest"],
         ["checklist", "Checklist: adding a property", "checklist custom vendor property"],
+        ["bp-threading", "Threading with Handler & Looper", "handler looper handlerthread messagequeue main thread anr leak weakreference quitsafely"],
+        ["bp-binding", "Handling service connections", "serviceconnection bindservice unbindservice onservicedisconnected onbindingdied onnullbinding deadobjectexception linktodeath"],
+        ["bp-retry", "Retry with backoff", "retry exponential backoff jitter propertynotavailableandretryexception try_again idempotent coroutines"],
+        ["bp-service", "Implementing a service", "service aidl binder stub remotecallbacklist oneway enforcecallingpermission onstartcommand start_sticky foreground"],
+        ["bp-rules", "Best-practice checklist", "best practices rules checklist"],
       ],
     },
     {
@@ -540,7 +545,7 @@
 
   /* ---------------------------------------------------- Highlighter */
   const KW = {
-    kotlin: "package import class object fun val var private public protected internal override return if else when null true false as is in for while interface companion const data sealed this super throw try catch finally lateinit by",
+    kotlin: "package import class object fun val var private public protected internal override return if else when null true false as is in for while interface companion const data sealed this super throw try catch finally lateinit by suspend",
     java: "package import class interface public private protected static final void return if else for while new null true false this super throws throw try catch finally extends implements synchronized int long float double boolean byte instanceof switch case default break",
     cpp: "namespace class struct public private protected override final const constexpr static auto return if else switch case default break continue for while do void int float double bool true false nullptr using template typename virtual explicit operator new delete inline char unsigned signed long short enum sizeof this",
     aidl: "package import interface parcelable oneway in out inout void int long float double byte boolean String const enum union",

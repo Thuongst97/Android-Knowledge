@@ -141,7 +141,7 @@
         </div>
         <div class="tab-panel" data-panel="flow">
           <p>${l.flow}</p>
-          <p class="small muted">See the code for every layer in <a href="code.html#explorer">Code Examples</a>.</p>
+          <p class="small muted">See the code for every layer in <a href="code.html#explorer">Example Code and Best Practices</a>.</p>
         </div>
         <div class="tab-panel" data-panel="ana">
           <div class="callout analogy" style="margin-top:0"><div class="ci">🎭</div><div><span class="ct">Analogy</span><p>${l.analogy}</p></div></div>
