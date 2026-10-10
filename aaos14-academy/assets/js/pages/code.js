@@ -3,26 +3,36 @@
   const { $, renderCodeExplorer } = window.AAOS;
   const src = (id) => $("#src-" + id).textContent;
 
+  const KOTLIN_NOTES = {
+    1: ["The android.car library", "Available on AAOS devices. With Gradle, add <code>useLibrary(\"android.car\")</code> inside the <code>android {}</code> block."],
+    2: ["Car.createCar with a listener", "Binds to CarService. The listener variant handles CarService restarts (crash/update) for you — always prefer it over the synchronous <code>createCar(context)</code>."],
+    3: ["ready = false", "CarService just died. All previously obtained managers are invalid; the listener fires again with <code>ready = true</code> once CarService is back."],
+    4: ["Get CarPropertyManager", "<code>Car.PROPERTY_SERVICE</code> returns the Vehicle Property manager. Likewise <code>Car.AUDIO_SERVICE</code>, <code>Car.POWER_SERVICE</code>…"],
+    5: ["CarPropertyEventCallback", "Receives <code>onChangeEvent</code> (new value) and <code>onErrorEvent</code>. Runs on the main thread by default; an Executor variant exists."],
+    6: ["Check the status", "A property can be <code>STATUS_UNAVAILABLE</code> (e.g. ECU not ready) or <code>STATUS_ERROR</code>. Never read <code>value</code> unless it is AVAILABLE."],
+    7: ["SI units", "<code>PERF_VEHICLE_SPEED</code> is in <strong>m/s</strong> (float). Multiply by 3.6 for km/h. Use <code>VEHICLE_SPEED_DISPLAY_UNITS</code> to pick display units."],
+    8: ["registerCallback", "Subscribes to a CONTINUOUS property at a sample rate (Hz). <code>SENSOR_RATE_NORMAL</code> ≈ 1 Hz, <code>SENSOR_RATE_FASTEST</code> = maxSampleRate. Requires <code>CAR_SPEED</code> (dangerous)."],
+    9: ["Read CarPropertyConfig", "Returns null if the car doesn't support the property or the app lacks permission. Always check before writing."],
+    10: ["Find the right areaId", "Many cars merge HVAC areas (e.g. ROW_1_LEFT | ROW_2_LEFT share one vent). Don't hard-code — pick the areaId that <em>contains</em> the desired seat."],
+    11: ["AreaIdConfig (API 34)", "Android 14 adds <code>getAreaIdConfig()</code> with per-area min/max. Clamp before sending to avoid <code>IllegalArgumentException</code>."],
+    12: ["isPropertyAvailable", "E.g. when HVAC is off (<code>HVAC_POWER_ON = false</code>) the temperature may not be writable."],
+    13: ["setFloatProperty — asynchronous", "Returns immediately; confirmation arrives through <code>onChangeEvent</code>. Requires <code>CONTROL_CAR_CLIMATE</code> (signature|privileged). The value only becomes “true” when the VHAL reports it back from the ECU."],
+    14: ["Clean up", "Unregister callbacks and disconnect when the component is destroyed to avoid Binder leaks and pointless events."],
+  };
+
+  // The Java version mirrors the Kotlin one line for line; only the language-specific notes differ.
+  const JAVA_NOTES = {
+    ...KOTLIN_NOTES,
+    2: ["Car.createCar with a listener", "Same API as in Kotlin: the last argument is a <code>CarServiceLifecycleListener</code>, written here as a lambda. It handles CarService restarts for you — prefer it over the synchronous <code>createCar(context)</code>."],
+    3: ["ready = false", "CarService just died. All previously obtained managers are invalid; drop them and <code>return</code> from the lambda. The listener fires again with <code>ready = true</code> once CarService is back."],
+    7: ["SI units and unboxing", "<code>getValue()</code> returns a boxed <code>Float</code> in <strong>m/s</strong>; it is safe to unbox only after the status check above. Multiply by 3.6 for km/h."],
+    10: ["Find the right areaId", "Many cars merge HVAC areas (e.g. ROW_1_LEFT | ROW_2_LEFT share one vent). Loop over <code>getAreaIds()</code> and pick the one that <em>contains</em> the desired seat; areaId 0 means GLOBAL, so it doubles as “not found” here."],
+    11: ["AreaIdConfig (API 34)", "Android 14 adds <code>getAreaIdConfig()</code> with per-area min/max, typed as <code>Object</code> through generics — check with <code>instanceof</code> and clamp with <code>Math.min/max</code> to avoid <code>IllegalArgumentException</code>."],
+  };
+
   const SPECS = {
-    kotlin: {
-      file: "VehicleDataController.kt", lang: "kotlin", label: "Kotlin",
-      notes: {
-        1: ["The android.car library", "Available on AAOS devices. With Gradle, add <code>useLibrary(\"android.car\")</code> inside the <code>android {}</code> block."],
-        2: ["Car.createCar with a listener", "Binds to CarService. The listener variant handles CarService restarts (crash/update) for you — always prefer it over the synchronous <code>createCar(context)</code>."],
-        3: ["ready = false", "CarService just died. All previously obtained managers are invalid; the listener fires again with <code>ready = true</code> once CarService is back."],
-        4: ["Get CarPropertyManager", "<code>Car.PROPERTY_SERVICE</code> returns the Vehicle Property manager. Likewise <code>Car.AUDIO_SERVICE</code>, <code>Car.POWER_SERVICE</code>…"],
-        5: ["CarPropertyEventCallback", "Receives <code>onChangeEvent</code> (new value) and <code>onErrorEvent</code>. Runs on the main thread by default; an Executor variant exists."],
-        6: ["Check the status", "A property can be <code>STATUS_UNAVAILABLE</code> (e.g. ECU not ready) or <code>STATUS_ERROR</code>. Never read <code>value</code> unless it is AVAILABLE."],
-        7: ["SI units", "<code>PERF_VEHICLE_SPEED</code> is in <strong>m/s</strong> (float). Multiply by 3.6 for km/h. Use <code>VEHICLE_SPEED_DISPLAY_UNITS</code> to pick display units."],
-        8: ["registerCallback", "Subscribes to a CONTINUOUS property at a sample rate (Hz). <code>SENSOR_RATE_NORMAL</code> ≈ 1 Hz, <code>SENSOR_RATE_FASTEST</code> = maxSampleRate. Requires <code>CAR_SPEED</code> (dangerous)."],
-        9: ["Read CarPropertyConfig", "Returns null if the car doesn't support the property or the app lacks permission. Always check before writing."],
-        10: ["Find the right areaId", "Many cars merge HVAC areas (e.g. ROW_1_LEFT | ROW_2_LEFT share one vent). Don't hard-code — pick the areaId that <em>contains</em> the desired seat."],
-        11: ["AreaIdConfig (API 34)", "Android 14 adds <code>getAreaIdConfig()</code> with per-area min/max. Clamp before sending to avoid <code>IllegalArgumentException</code>."],
-        12: ["isPropertyAvailable", "E.g. when HVAC is off (<code>HVAC_POWER_ON = false</code>) the temperature may not be writable."],
-        13: ["setFloatProperty — asynchronous", "Returns immediately; confirmation arrives through <code>onChangeEvent</code>. Requires <code>CONTROL_CAR_CLIMATE</code> (signature|privileged). The value only becomes “true” when the VHAL reports it back from the ECU."],
-        14: ["Clean up", "Unregister callbacks and disconnect when the component is destroyed to avoid Binder leaks and pointless events."],
-      },
-    },
+    kotlin: { file: "VehicleDataController.kt", lang: "kotlin", label: "Kotlin", notes: KOTLIN_NOTES },
+    java: { file: "VehicleDataController.java", lang: "java", label: "Java", notes: JAVA_NOTES },
     manifest: {
       file: "AndroidManifest.xml", lang: "xml", label: "XML",
       notes: {

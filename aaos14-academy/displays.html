@@ -72,6 +72,7 @@
           </script>
 
           <h3>Querying from code</h3>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="OccupantInfo.kt" data-label="Kotlin">
 val ozm = car.getCarManager(Car.CAR_OCCUPANT_ZONE_SERVICE) as CarOccupantZoneManager
 
@@ -91,6 +92,28 @@ ozm.registerOccupantZoneConfigChangeListener { changeFlags ->
     }
 }
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="OccupantInfo.java" data-label="Java">
+CarOccupantZoneManager ozm =
+        (CarOccupantZoneManager) car.getCarManager(Car.CAR_OCCUPANT_ZONE_SERVICE);
+
+// Find the driver's zone
+OccupantZoneInfo driverZone = ozm.getAllOccupantZones().stream()
+        .filter(z -> z.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER)
+        .findFirst()
+        .orElseThrow();
+
+Display mainDisplay = ozm.getDisplayForOccupant(driverZone, CarOccupantZoneManager.DISPLAY_TYPE_MAIN);
+int userId      = ozm.getUserForOccupant(driverZone);          // Android user of the zone
+int audioZoneId = ozm.getAudioZoneIdForOccupant(driverZone);   // link to CarAudioManager
+
+// React when the mapping changes (user switch, display hot-plug, audio zone change)
+ozm.registerOccupantZoneConfigChangeListener(changeFlags -> {
+    if ((changeFlags & CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER) != 0) {
+        refreshUserBoundUi();
+    }
+});
+          </script>
+          </div>
           <div class="callout analogy">
             <div class="ci">🎭</div>
             <div><span class="ct">Analogy</span>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Practical Code Examples — AAOS 14 Academy</title>
-  <meta name="description" content="Line-by-line annotated examples: Kotlin CarPropertyManager, IVehicle.aidl, a C++ VHAL IVehicleHardware implementation, Android.bp, VINTF and SEPolicy.">
+  <title>Example Code and Best Practices — AAOS 14 Academy</title>
+  <meta name="description" content="Line-by-line annotated examples in Kotlin and Java (CarPropertyManager), IVehicle.aidl, a C++ VHAL, build files, plus best practices for Handler/Looper threading, service connections, retries and service implementation. Examples: IVehicle.aidl, a C++ VHAL IVehicleHardware implementation, Android.bp, VINTF and SEPolicy.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -22,15 +22,15 @@
         <header class="page-hero">
           <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 05</span></nav>
           <div class="eyebrow">Module 05 · Hands-on</div>
-          <h1>Practical Code Examples</h1>
-          <p class="lead">Three views of the same feature — reading vehicle speed and setting the HVAC temperature: from a Kotlin app, through the AIDL contract, down to a C++ VHAL implementation in the AOSP source tree. Click any numbered line to read its explanation.</p>
-          <div class="page-meta"><span>⏱ 30 min</span><span>🎯 Intermediate → Advanced</span><span>📦 android-14.0.0 · VHAL AIDL V2</span></div>
+          <h1>Example Code and Best Practices</h1>
+          <p class="lead">Three views of the same feature — reading vehicle speed and setting the HVAC temperature: from a Kotlin or Java app, through the AIDL contract, down to a C++ VHAL implementation in the AOSP source tree. Click any numbered line to read its explanation. Sections 5.4–5.8 then cover best practices for app and service code: Handler/Looper threading, service connections, retries and implementing a bound service.</p>
+          <div class="page-meta"><span>⏱ 60 min</span><span>🎯 Intermediate → Advanced</span><span>📦 android-14.0.0 · VHAL AIDL V2</span></div>
         </header>
 
         <section class="doc-section" id="overview" data-title="Overview">
           <div class="sec-head"><h2><span class="sec-num">5.1</span>Overview</h2></div>
           <div class="grid grid-3">
-            <div class="glass card"><h4 class="c-blue">① App (Kotlin)</h4><p class="small">Connect to <code>Car</code>, subscribe to <code>PERF_VEHICLE_SPEED</code>, write <code>HVAC_TEMPERATURE_SET</code> with config checks. The HVAC part requires a privileged app.</p></div>
+            <div class="glass card"><h4 class="c-blue">① App (Kotlin · Java)</h4><p class="small">Connect to <code>Car</code>, subscribe to <code>PERF_VEHICLE_SPEED</code>, write <code>HVAC_TEMPERATURE_SET</code> with config checks. The HVAC part requires a privileged app.</p></div>
             <div class="glass card"><h4 style="color:#f472b6">② Contract (AIDL)</h4><p class="small"><code>IVehicle</code>, <code>IVehicleCallback</code> and the key parcelables. You <strong>don't edit</strong> these files — read them to understand the contract.</p></div>
             <div class="glass card"><h4 class="c-green">③ VHAL (C++)</h4><p class="small">An <code>OemVehicleHardware</code> class implementing <code>IVehicleHardware</code>, wired to CAN via SocketCAN; plus build, VINTF and SEPolicy files.</p></div>
           </div>
@@ -41,6 +41,7 @@
           <div class="tabs" data-tabs id="code-tabs">
             <div class="tab-list" role="tablist">
               <button data-tab="kotlin" aria-selected="true">Kotlin · CarPropertyManager</button>
+              <button data-tab="java">Java · CarPropertyManager</button>
               <button data-tab="manifest">AndroidManifest.xml</button>
               <button data-tab="aidl">AIDL · IVehicle</button>
               <button data-tab="cpp-h">C++ · Header</button>
@@ -48,6 +49,7 @@
               <button data-tab="build">Build · VINTF · SEPolicy</button>
             </div>
             <div class="tab-panel" data-panel="kotlin"><div id="ex-kotlin"></div></div>
+            <div class="tab-panel" data-panel="java"><div id="ex-java"></div></div>
             <div class="tab-panel" data-panel="manifest"><div id="ex-manifest"></div></div>
             <div class="tab-panel" data-panel="aidl"><div id="ex-aidl"></div></div>
             <div class="tab-panel" data-panel="cpp-h"><div id="ex-cpp-h"></div></div>
@@ -81,6 +83,703 @@
               <code>adb shell dumpsys android.hardware.automotive.vehicle.IVehicle/default --get 0x15600503 -a 1</code><br>
               or through CarService: <code>adb shell cmd car_service get-property-value 0x15600503 1</code></p>
             </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="bp-threading" data-title="Threading with Handler & Looper">
+          <div class="sec-head"><h2><span class="sec-num">5.4</span>Best practice: threading with Handler &amp; Looper</h2></div>
+          <p>Every Android thread can own one <strong>Looper</strong>: an endless loop that takes <code>Message</code>s and <code>Runnable</code>s from a <strong>MessageQueue</strong> and runs them one at a time. A <strong>Handler</strong> is the door into a specific Looper's queue. The main (UI) thread has a Looper already; for background work you create a <code>HandlerThread</code>, which is a thread that starts its own Looper.</p>
+          <div class="grid grid-3">
+            <div class="glass card"><h4 class="c-blue">Always name the Looper</h4><p class="small"><code>new Handler()</code> without a Looper is deprecated since API 30: it silently binds to whatever thread created it, or crashes on a thread without one. Write <code>Handler(Looper.getMainLooper())</code> or <code>Handler(thread.looper)</code>.</p></div>
+            <div class="glass card"><h4 class="c-green">One thread, one owner</h4><p class="small">Posting all work for a component to one <code>HandlerThread</code> serializes it, so its state needs no locks. Hop back to the main Looper only to touch the UI.</p></div>
+            <div class="glass card"><h4 class="c-amber">Clean up on teardown</h4><p class="small">Call <code>removeCallbacksAndMessages(null)</code> and <code>quitSafely()</code> in <code>onDestroy()</code>/<code>close()</code>. A queued Runnable keeps its captured objects (often an Activity) alive until it runs.</p></div>
+          </div>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="hl-kotlin" aria-selected="true">Kotlin · HandlerThread</button>
+              <button data-tab="hl-java">Java · HandlerThread</button>
+              <button data-tab="hl-java-msg">Java · Message handler</button>
+            </div>
+            <div class="tab-panel" data-panel="hl-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="SensorWorker.kt" data-label="Kotlin">
+class SensorWorker(private val onResult: (Float) -> Unit) : AutoCloseable {
+
+    // A background thread with its own Looper + MessageQueue
+    private val thread = HandlerThread("SensorWorker", Process.THREAD_PRIORITY_BACKGROUND)
+        .apply { start() }
+    private val worker = Handler(thread.looper)          // explicit Looper, never Handler()
+    private val main = Handler(Looper.getMainLooper())
+
+    fun process(raw: ByteArray) {
+        worker.post {
+            val value = decode(raw)                       // heavy work off the main thread
+            main.post { onResult(value) }                 // hop back to the UI thread
+        }
+    }
+
+    private val poll = object : Runnable {
+        override fun run() {
+            readSensor()
+            worker.postDelayed(this, POLL_MS)             // periodic work without a Timer
+        }
+    }
+
+    fun startPolling() {
+        worker.removeCallbacks(poll)                      // never schedule the same loop twice
+        worker.post(poll)
+    }
+
+    override fun close() {
+        worker.removeCallbacksAndMessages(null)           // drop everything still queued
+        main.removeCallbacksAndMessages(null)
+        thread.quitSafely()                               // finish the current message, then exit
+    }
+
+    private companion object { const val POLL_MS = 1_000L }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="hl-java">
+              <script type="text/plain" data-code data-lang="java" data-file="SensorWorker.java" data-label="Java">
+public final class SensorWorker implements AutoCloseable {
+    private static final long POLL_MS = 1_000L;
+
+    // A background thread with its own Looper + MessageQueue
+    private final HandlerThread thread =
+            new HandlerThread("SensorWorker", Process.THREAD_PRIORITY_BACKGROUND);
+    private final Handler worker;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Consumer<Float> onResult;
+
+    public SensorWorker(Consumer<Float> onResult) {
+        this.onResult = onResult;
+        thread.start();
+        worker = new Handler(thread.getLooper());         // explicit Looper, never new Handler()
+    }
+
+    public void process(byte[] raw) {
+        worker.post(() -> {
+            float value = decode(raw);                    // heavy work off the main thread
+            main.post(() -> onResult.accept(value));      // hop back to the UI thread
+        });
+    }
+
+    private final Runnable poll = new Runnable() {
+        @Override public void run() {
+            readSensor();
+            worker.postDelayed(this, POLL_MS);            // periodic work without a Timer
+        }
+    };
+
+    public void startPolling() {
+        worker.removeCallbacks(poll);                     // never schedule the same loop twice
+        worker.post(poll);
+    }
+
+    @Override public void close() {
+        worker.removeCallbacksAndMessages(null);          // drop everything still queued
+        main.removeCallbacksAndMessages(null);
+        thread.quitSafely();                              // finish the current message, then exit
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="hl-java-msg">
+              <script type="text/plain" data-code data-lang="java" data-file="HvacActivity.java — leak-free Handler (abridged)" data-label="Java">
+public class HvacActivity extends Activity {
+    private static final int MSG_TEMPERATURE = 1;
+
+    // ✗ A non-static inner Handler holds HvacActivity.this; every queued Message
+    //   keeps the Activity alive after rotation or finish().
+    // ✓ A static nested class with a WeakReference cannot leak it.
+    private static final class UiHandler extends Handler {
+        private final WeakReference<HvacActivity> ref;
+
+        UiHandler(HvacActivity activity) {
+            super(Looper.getMainLooper());
+            ref = new WeakReference<>(activity);
+        }
+
+        @Override public void handleMessage(Message msg) {
+            HvacActivity activity = ref.get();
+            if (activity == null || activity.isFinishing()) return;
+            if (msg.what == MSG_TEMPERATURE) activity.showTemperature((Float) msg.obj);
+        }
+    }
+
+    private final UiHandler ui = new UiHandler(this);
+
+    void onTemperatureFromBackground(float celsius) {
+        // obtainMessage() reuses pooled Message objects instead of allocating
+        ui.obtainMessage(MSG_TEMPERATURE, celsius).sendToTarget();
+    }
+
+    @Override protected void onDestroy() {
+        ui.removeCallbacksAndMessages(null);
+        super.onDestroy();
+    }
+}
+              </script>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Do</th><th>Avoid</th><th>Why</th></tr></thead>
+              <tbody>
+                <tr><td><code>Handler(Looper.getMainLooper())</code></td><td><code>Handler()</code></td><td>The implicit Looper depends on the calling thread; deprecated since API 30.</td></tr>
+                <tr><td><code>HandlerThread</code> or an <code>Executor</code></td><td><code>Thread.sleep()</code> or blocking I/O on the main thread</td><td>The main Looper also drives input and drawing: 5 s blocked input is an ANR.</td></tr>
+                <tr><td><code>quitSafely()</code></td><td><code>quit()</code>, or never quitting</td><td><code>quit()</code> drops pending messages mid-flight; a never-quit HandlerThread leaks a thread.</td></tr>
+                <tr><td><code>obtainMessage()</code> / <code>post()</code></td><td><code>new Message()</code></td><td>Messages come from a pool; allocating them adds GC pressure on hot paths.</td></tr>
+                <tr><td>Check <code>Looper.myLooper() == handler.looper</code> in debug builds</td><td>Assuming which thread a callback runs on</td><td>Car API callbacks run on the Handler or Executor you passed; Binder callbacks run on a Binder thread.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="ci">💡</div>
+            <div><span class="ct">Car APIs take your Looper</span>
+              <p><code>Car.createCar(context, handler, …)</code> delivers its callbacks on that Handler's Looper (the main one when <code>null</code>). Passing a worker Handler keeps CarService reconnects and the work they trigger off the UI thread.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="bp-binding" data-title="Handling service connections">
+          <div class="sec-head"><h2><span class="sec-num">5.5</span>Best practice: handling service connections</h2></div>
+          <p>A bound service lives in another process that can crash, be updated or be killed for memory at any moment. A robust client treats “connected” as a state that comes and goes, not as something that happens once. The four <code>ServiceConnection</code> callbacks each mean something different:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Callback</th><th>When it fires</th><th>What the client should do</th></tr></thead>
+              <tbody>
+                <tr><td><code>onServiceConnected</code></td><td>The service's <code>onBind()</code> returned a Binder.</td><td>Wrap it with <code>Stub.asInterface()</code>, re-register listeners, reset the retry counter.</td></tr>
+                <tr><td><code>onServiceDisconnected</code></td><td>The service process died. The binding <strong>stays active</strong>.</td><td>Drop the proxy and show “unavailable”. Do <strong>not</strong> unbind: the system rebinds and calls <code>onServiceConnected</code> again when the service restarts.</td></tr>
+                <tr><td><code>onBindingDied</code> <span class="badge gray">API 26</span></td><td>The binding can never reconnect (e.g. the service's package was updated or disabled).</td><td>Unbind, then bind again, with backoff.</td></tr>
+                <tr><td><code>onNullBinding</code> <span class="badge gray">API 28</span></td><td><code>onBind()</code> returned <code>null</code>.</td><td>Unbind: <code>onServiceConnected</code> will never come.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="sc-kotlin" aria-selected="true">Kotlin · ClimateClient</button>
+              <button data-tab="sc-java">Java · ClimateClient</button>
+            </div>
+            <div class="tab-panel" data-panel="sc-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="ClimateClient.kt — IClimateService is a hypothetical OEM AIDL" data-label="Kotlin">
+class ClimateClient(private val context: Context) : AutoCloseable {
+
+    private val main = Handler(Looper.getMainLooper())
+    private val backoff = Backoff(initialMs = 500, maxMs = 30_000)    // see 5.6
+    @Volatile private var service: IClimateService? = null
+    private var bound = false
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            val s = IClimateService.Stub.asInterface(binder)
+            service = s
+            backoff.reset()
+            try {
+                s.registerListener(listener)                     // state lives in the service: re-register
+            } catch (e: RemoteException) {
+                // Died already; onServiceDisconnected follows
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            service = null                                       // keep the binding: the system rebinds
+        }
+
+        override fun onBindingDied(name: ComponentName) {
+            service = null
+            unbind()                                             // this binding is dead for good
+            scheduleRebind()
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            unbind()                                             // onBind() returned null
+        }
+    }
+
+    // Binder callbacks arrive on a Binder thread: hop to the main thread before touching UI
+    private val listener = object : IClimateListener.Stub() {
+        override fun onTemperatureChanged(celsius: Float) {
+            main.post { render(celsius) }
+        }
+    }
+
+    fun bind() {
+        if (bound) return
+        bound = true                                             // registered even if bindService fails
+        val intent = Intent().setComponent(SERVICE)              // explicit intent only
+        if (!context.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+            Log.w(TAG, "Climate service missing or permission denied")
+            unbind()
+            scheduleRebind()
+        }
+    }
+
+    fun setTemperature(celsius: Float): Boolean {
+        val s = service ?: return false                          // not connected right now
+        return try {
+            s.setTemperature(celsius)
+            true
+        } catch (e: RemoteException) {                           // includes DeadObjectException
+            false
+        }
+    }
+
+    private fun scheduleRebind() {
+        main.postDelayed({ bind() }, REBIND_TOKEN, backoff.nextDelayMs())
+    }
+
+    private fun unbind() {
+        if (!bound) return
+        bound = false
+        service = null
+        context.unbindService(connection)
+    }
+
+    override fun close() {
+        main.removeCallbacksAndMessages(REBIND_TOKEN)            // cancel a pending rebind
+        try { service?.unregisterListener(listener) } catch (e: RemoteException) { }
+        unbind()
+    }
+
+    private companion object {
+        const val TAG = "ClimateClient"
+        val SERVICE = ComponentName("com.oem.climate", "com.oem.climate.ClimateService")
+        val REBIND_TOKEN = Any()
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="sc-java">
+              <script type="text/plain" data-code data-lang="java" data-file="ClimateClient.java — IClimateService is a hypothetical OEM AIDL" data-label="Java">
+public final class ClimateClient implements AutoCloseable {
+    private static final String TAG = "ClimateClient";
+    private static final ComponentName SERVICE =
+            new ComponentName("com.oem.climate", "com.oem.climate.ClimateService");
+    private final Object rebindToken = new Object();
+
+    private final Context context;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Backoff backoff = new Backoff(500, 30_000);         // see 5.6
+    private volatile IClimateService service;
+    private boolean bound;
+
+    public ClimateClient(Context context) {
+        this.context = context;
+    }
+
+    private final ServiceConnection connection = new ServiceConnection() {
+        @Override public void onServiceConnected(ComponentName name, IBinder binder) {
+            IClimateService s = IClimateService.Stub.asInterface(binder);
+            service = s;
+            backoff.reset();
+            try {
+                s.registerListener(listener);                    // state lives in the service: re-register
+            } catch (RemoteException e) {
+                // Died already; onServiceDisconnected follows
+            }
+        }
+
+        @Override public void onServiceDisconnected(ComponentName name) {
+            service = null;                                      // keep the binding: the system rebinds
+        }
+
+        @Override public void onBindingDied(ComponentName name) {
+            service = null;
+            unbind();                                            // this binding is dead for good
+            scheduleRebind();
+        }
+
+        @Override public void onNullBinding(ComponentName name) {
+            unbind();                                            // onBind() returned null
+        }
+    };
+
+    // Binder callbacks arrive on a Binder thread: hop to the main thread before touching UI
+    private final IClimateListener listener = new IClimateListener.Stub() {
+        @Override public void onTemperatureChanged(float celsius) {
+            main.post(() -> render(celsius));
+        }
+    };
+
+    public void bind() {
+        if (bound) return;
+        bound = true;                                            // registered even if bindService fails
+        Intent intent = new Intent().setComponent(SERVICE);      // explicit intent only
+        if (!context.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+            Log.w(TAG, "Climate service missing or permission denied");
+            unbind();
+            scheduleRebind();
+        }
+    }
+
+    public boolean setTemperature(float celsius) {
+        IClimateService s = service;                             // read the volatile once
+        if (s == null) return false;                             // not connected right now
+        try {
+            s.setTemperature(celsius);
+            return true;
+        } catch (RemoteException e) {                            // includes DeadObjectException
+            return false;
+        }
+    }
+
+    private void scheduleRebind() {
+        main.postDelayed(this::bind, rebindToken, backoff.nextDelayMs());
+    }
+
+    private void unbind() {
+        if (!bound) return;
+        bound = false;
+        service = null;
+        context.unbindService(connection);
+    }
+
+    @Override public void close() {
+        main.removeCallbacksAndMessages(rebindToken);            // cancel a pending rebind
+        IClimateService s = service;
+        if (s != null) {
+            try { s.unregisterListener(listener); } catch (RemoteException ignored) { }
+        }
+        unbind();
+    }
+}
+              </script>
+            </div>
+          </div>
+
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Unbind even when bind fails</h4><p class="small"><code>bindService()</code> returning <code>false</code> means the service was not found or you lack permission, but the connection is still registered. Call <code>unbindService()</code> either way, exactly once per bind.</p></div>
+            <div class="glass card"><h4 class="c-green">Every remote call can fail</h4><p class="small">Wrap AIDL calls in <code>try/catch (RemoteException)</code>. <code>DeadObjectException</code> is a subclass: the other process is gone and <code>onServiceDisconnected</code> is on its way.</p></div>
+            <div class="glass card"><h4 class="c-purple">Bind to the lifecycle that needs it</h4><p class="small">UI-only data: bind in <code>onStart()</code>, unbind in <code>onStop()</code>. Long-lived clients bind from a Service or the Application, never from a short-lived Activity.</p></div>
+            <div class="glass card"><h4 class="c-amber">Raw Binders need linkToDeath</h4><p class="small">A Binder you got some other way (e.g. returned by another AIDL call) has no <code>ServiceConnection</code>. Use <code>binder.linkToDeath(recipient, 0)</code> and <code>unlinkToDeath()</code> when done.</p></div>
+          </div>
+          <div class="callout note">
+            <div class="ci">🚗</div>
+            <div><span class="ct">CarService already does this for you</span>
+              <p>For CarService itself you never write a <code>ServiceConnection</code>: <code>Car.createCar(context, handler, CAR_WAIT_TIMEOUT_WAIT_FOREVER, listener)</code> reconnects on its own and reports <code>ready = false/true</code>, as in the <a href="#explorer">explorer above</a>.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="bp-retry" data-title="Retry with backoff">
+          <div class="sec-head"><h2><span class="sec-num">5.6</span>Best practice: retry with backoff</h2></div>
+          <p>A retry is a bet that the failure is temporary. Make that bet only for errors that are actually transient, wait longer after each failure, add jitter so that many clients do not all retry at the same instant after a CarService or VHAL restart, and stop when the component goes away.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Failure</th><th>Retry?</th><th>Reason</th></tr></thead>
+              <tbody>
+                <tr><td><code>PropertyNotAvailableAndRetryException</code> <span class="badge gray">API 34</span></td><td><span class="badge green">Yes</span></td><td>The VHAL returned <code>TRY_AGAIN</code>: ECU busy, bus temporarily off.</td></tr>
+                <tr><td><code>DeadObjectException</code> / <code>RemoteException</code></td><td><span class="badge amber">After reconnect</span></td><td>The service is restarting. Wait for <code>onServiceConnected</code> (or <code>ready = true</code>), then resend.</td></tr>
+                <tr><td><code>bindService()</code> returned <code>false</code></td><td><span class="badge amber">Slowly</span></td><td>The package may not be installed or started yet at boot. Back off up to a long cap.</td></tr>
+                <tr><td><code>PropertyNotAvailableException</code></td><td><span class="badge red">No</span></td><td>Not available in the current state (e.g. HVAC off). Wait for a state change event instead.</td></tr>
+                <tr><td><code>SecurityException</code>, <code>IllegalArgumentException</code></td><td><span class="badge red">No</span></td><td>Missing permission or bad input: retrying gives the same answer.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="rt-kotlin" aria-selected="true">Kotlin · Coroutines</button>
+              <button data-tab="rt-java">Java · Handler</button>
+            </div>
+            <div class="tab-panel" data-panel="rt-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="Backoff.kt · HvacWriter.kt" data-label="Kotlin">
+/** Exponential backoff with "equal jitter": half fixed, half random. */
+class Backoff(private val initialMs: Long = 500, private val maxMs: Long = 30_000) {
+    var attempts = 0
+        private set
+
+    fun nextDelayMs(): Long {
+        val exp = (initialMs shl attempts.coerceAtMost(20)).coerceAtMost(maxMs)
+        attempts++
+        return exp / 2 + Random.nextLong(exp / 2 + 1)
+    }
+
+    fun reset() { attempts = 0 }
+}
+
+suspend fun CarPropertyManager.setTemperatureWithRetry(
+    areaId: Int, celsius: Float, maxAttempts: Int = 5,
+) {
+    val backoff = Backoff(initialMs = 200, maxMs = 5_000)
+    while (true) {
+        try {
+            setFloatProperty(VehiclePropertyIds.HVAC_TEMPERATURE_SET, areaId, celsius)
+            return                                               // accepted; the change event confirms it
+        } catch (e: PropertyNotAvailableAndRetryException) {     // only the transient error is retried
+            if (backoff.attempts + 1 >= maxAttempts) throw e     // give up loudly, never loop forever
+            Log.d(TAG, "HVAC busy, retry #${backoff.attempts + 1}")
+            delay(backoff.nextDelayMs())                         // suspends, never blocks; cancellable
+        }
+    }
+}
+
+// Tied to a lifecycle: leaving the screen cancels a pending retry automatically
+lifecycleScope.launch { propertyManager.setTemperatureWithRetry(areaId, 22f) }
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="rt-java">
+              <script type="text/plain" data-code data-lang="java" data-file="Backoff.java · RetryingWrite.java" data-label="Java">
+/** Exponential backoff with "equal jitter": half fixed, half random. */
+public final class Backoff {
+    private final long initialMs, maxMs;
+    private int attempts;
+
+    public Backoff(long initialMs, long maxMs) {
+        this.initialMs = initialMs;
+        this.maxMs = maxMs;
+    }
+
+    public long nextDelayMs() {
+        long exp = Math.min(maxMs, initialMs << Math.min(attempts, 20));
+        attempts++;
+        return exp / 2 + ThreadLocalRandom.current().nextLong(exp / 2 + 1);
+    }
+
+    public int attempts() { return attempts; }
+    public void reset() { attempts = 0; }
+}
+
+/** Retries one write on a Handler thread; cancel() stops it cleanly. */
+final class RetryingWrite {
+    private final Handler handler;
+    private final Runnable write;
+    private final Consumer<RuntimeException> onGiveUp;
+    private final Backoff backoff = new Backoff(200, 5_000);
+    private final Object token = new Object();                   // identifies only our callbacks
+    private final int maxAttempts;
+    private volatile boolean cancelled;
+
+    RetryingWrite(Handler handler, int maxAttempts, Runnable write,
+                  Consumer<RuntimeException> onGiveUp) {
+        this.handler = handler;
+        this.maxAttempts = maxAttempts;
+        this.write = write;
+        this.onGiveUp = onGiveUp;
+    }
+
+    void start() { handler.post(this::attempt); }
+
+    private void attempt() {
+        if (cancelled) return;
+        try {
+            write.run();                                         // e.g. pm.setFloatProperty(...)
+        } catch (PropertyNotAvailableAndRetryException e) {     // only the transient error is retried
+            if (backoff.attempts() + 1 >= maxAttempts) {
+                onGiveUp.accept(e);                              // give up loudly, never loop forever
+                return;
+            }
+            handler.postDelayed(this::attempt, token, backoff.nextDelayMs());
+        }
+    }
+
+    void cancel() {
+        cancelled = true;
+        handler.removeCallbacksAndMessages(token);               // not null: the Handler may be shared
+    }
+}
+              </script>
+            </div>
+          </div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Retry only what is safe to repeat</span>
+              <p>Setting a temperature to 22 °C twice is harmless; “increase by one step” sent twice is not. Retry absolute, idempotent commands, or carry a request ID the service can deduplicate. Also cap the total time: a retry that lands after the driver changed their mind overwrites the newer choice.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="bp-service" data-title="Implementing a service">
+          <div class="sec-head"><h2><span class="sec-num">5.7</span>Best practice: implementing a service</h2></div>
+          <p>The server side of <code>IClimateService</code> from 5.5. Two thread rules shape it: lifecycle methods (<code>onCreate</code>, <code>onStartCommand</code>, <code>onBind</code>) run on the <strong>main thread</strong>, and AIDL methods run on the <strong>Binder thread pool</strong>, several at once. So the service does no blocking work in lifecycle methods and funnels all state changes through one <code>HandlerThread</code>.</p>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="sv-kotlin" aria-selected="true">Kotlin · ClimateService</button>
+              <button data-tab="sv-java">Java · ClimateService</button>
+              <button data-tab="sv-manifest">AndroidManifest.xml</button>
+            </div>
+            <div class="tab-panel" data-panel="sv-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="ClimateService.kt" data-label="Kotlin">
+class ClimateService : Service() {
+
+    private lateinit var worker: HandlerThread
+    private lateinit var handler: Handler
+    private val listeners = RemoteCallbackList<IClimateListener>()  // drops dead clients itself
+
+    override fun onCreate() {
+        super.onCreate()
+        worker = HandlerThread("ClimateService").apply { start() }
+        handler = Handler(worker.looper)
+    }
+
+    private val binder = object : IClimateService.Stub() {
+        // Binder thread pool, NOT the main thread: validate, then hand off
+        override fun setTemperature(celsius: Float) {
+            enforceCallingOrSelfPermission(PERMISSION_CONTROL, "setTemperature")
+            require(celsius in 16f..28f) { "Out of range: $celsius" }   // reaches the client as an exception
+            handler.post { applyTemperature(celsius) }                     // all state changes on one thread
+        }
+
+        override fun registerListener(listener: IClimateListener) {
+            enforceCallingOrSelfPermission(PERMISSION_CONTROL, "registerListener")
+            listeners.register(listener)
+        }
+
+        override fun unregisterListener(listener: IClimateListener) {
+            listeners.unregister(listener)
+        }
+    }
+
+    override fun onBind(intent: Intent): IBinder = binder
+
+    private fun applyTemperature(celsius: Float) {                       // runs on the worker thread
+        // ...write to the vehicle (CarPropertyManager / vendor HAL)...
+        val n = listeners.beginBroadcast()                      // one broadcast at a time: worker only
+        try {
+            for (i in 0 until n) {
+                try {
+                    listeners.getBroadcastItem(i).onTemperatureChanged(celsius)
+                } catch (e: RemoteException) {
+                    // Client died; RemoteCallbackList removes it
+                }
+            }
+        } finally {
+            listeners.finishBroadcast()
+        }
+    }
+
+    override fun onDestroy() {
+        listeners.kill()
+        worker.quitSafely()
+        super.onDestroy()
+    }
+
+    private companion object {
+        const val PERMISSION_CONTROL = "com.oem.climate.permission.CONTROL_CLIMATE"
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="sv-java">
+              <script type="text/plain" data-code data-lang="java" data-file="ClimateService.java" data-label="Java">
+public final class ClimateService extends Service {
+    private static final String PERMISSION_CONTROL = "com.oem.climate.permission.CONTROL_CLIMATE";
+
+    private HandlerThread worker;
+    private Handler handler;
+    private final RemoteCallbackList<IClimateListener> listeners =
+            new RemoteCallbackList<>();                          // drops dead clients itself
+
+    @Override public void onCreate() {
+        super.onCreate();
+        worker = new HandlerThread("ClimateService");
+        worker.start();
+        handler = new Handler(worker.getLooper());
+    }
+
+    private final IClimateService.Stub binder = new IClimateService.Stub() {
+        // Binder thread pool, NOT the main thread: validate, then hand off
+        @Override public void setTemperature(float celsius) {
+            enforceCallingOrSelfPermission(PERMISSION_CONTROL, "setTemperature");
+            if (celsius < 16f || celsius > 28f) {               // reaches the client as an exception
+                throw new IllegalArgumentException("Out of range: " + celsius);
+            }
+            handler.post(() -> applyTemperature(celsius));                 // all state changes on one thread
+        }
+
+        @Override public void registerListener(IClimateListener listener) {
+            enforceCallingOrSelfPermission(PERMISSION_CONTROL, "registerListener");
+            listeners.register(listener);
+        }
+
+        @Override public void unregisterListener(IClimateListener listener) {
+            listeners.unregister(listener);
+        }
+    };
+
+    @Override public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    private void applyTemperature(float celsius) {                       // runs on the worker thread
+        // ...write to the vehicle (CarPropertyManager / vendor HAL)...
+        int n = listeners.beginBroadcast();                     // one broadcast at a time: worker only
+        try {
+            for (int i = 0; i < n; i++) {
+                try {
+                    listeners.getBroadcastItem(i).onTemperatureChanged(celsius);
+                } catch (RemoteException e) {
+                    // Client died; RemoteCallbackList removes it
+                }
+            }
+        } finally {
+            listeners.finishBroadcast();
+        }
+    }
+
+    @Override public void onDestroy() {
+        listeners.kill();
+        worker.quitSafely();
+        super.onDestroy();
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="sv-manifest">
+              <script type="text/plain" data-code data-lang="xml" data-file="AndroidManifest.xml (service app)" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.oem.climate">
+
+    <!-- Only apps signed with the OEM key (or privileged) may bind -->
+    <permission
+        android:name="com.oem.climate.permission.CONTROL_CLIMATE"
+        android:protectionLevel="signature|privileged" />
+
+    <application>
+        <service
+            android:name=".ClimateService"
+            android:exported="true"
+            android:permission="com.oem.climate.permission.CONTROL_CLIMATE" />
+    </application>
+</manifest>
+              </script>
+            </div>
+          </div>
+
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Check the caller in every method</h4><p class="small"><code>android:permission</code> on the service gates <em>binding</em>; <code>enforceCallingOrSelfPermission()</code> gates each call. Use <code>Binder.getCallingUid()</code> for per-caller rules, and wrap calls made on your own behalf in <code>Binder.clearCallingIdentity()</code> / <code>restoreCallingIdentity()</code>.</p></div>
+            <div class="glass card"><h4 class="c-green">Use RemoteCallbackList for listeners</h4><p class="small">A plain <code>List</code> of listeners leaks dead clients and breaks on <code>equals()</code>, because every call hands you a new proxy object. <code>RemoteCallbackList</code> keys by Binder and removes clients when their process dies.</p></div>
+            <div class="glass card"><h4 class="c-purple">Make listener interfaces oneway</h4><p class="small">Declare client callbacks <code>oneway interface IClimateListener</code>. Otherwise one slow or frozen client blocks your broadcast loop, and every other client, until it returns.</p></div>
+            <div class="glass card"><h4 class="c-amber">Pick the right start mode</h4><p class="small">Pure bound services need no <code>onStartCommand</code>. Started services return <code>START_STICKY</code> (restart, null intent), <code>START_REDELIVER_INTENT</code> (restart with the last intent) or <code>START_NOT_STICKY</code>. On Android 14 a foreground service must declare a <code>foregroundServiceType</code>.</p></div>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🧭</div>
+            <div><span class="ct">Where should OEM logic live?</span>
+              <p>A privileged app service like this one suits OEM features that apps bind to. For logic that must start with CarService, or that extends system policy, see <a href="extensions.html#decision">Module 06 · Which mechanism should I use?</a></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="bp-rules" data-title="Best-practice checklist">
+          <div class="sec-head"><h2><span class="sec-num">5.8</span>Best-practice checklist</h2></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Area</th><th>Rule</th><th>Typical bug when ignored</th></tr></thead>
+              <tbody>
+                <tr><td>Threads</td><td>Never block the main Looper; give every Handler an explicit Looper.</td><td>ANR when the ECU answers slowly; callbacks on the wrong thread.</td></tr>
+                <tr><td>Lifecycle</td><td>Everything you start (callback, binding, HandlerThread, retry) has a matching stop in the same component.</td><td>Leaked Activity, leaked thread, events after <code>onDestroy()</code>.</td></tr>
+                <tr><td>Connections</td><td>Treat “connected” as a state; re-register listeners on every <code>onServiceConnected</code>.</td><td>UI frozen on stale data after the service restarts.</td></tr>
+                <tr><td>Remote calls</td><td>Catch <code>RemoteException</code>; never call a slow remote method from the main thread.</td><td>Crash on <code>DeadObjectException</code>; jank while the call blocks.</td></tr>
+                <tr><td>Retries</td><td>Retry only transient, idempotent operations, with capped exponential backoff, jitter and cancellation.</td><td>Thundering herd after a restart; duplicate commands; retries after the screen closed.</td></tr>
+                <tr><td>Service API</td><td>Check permissions per call, validate input, use <code>RemoteCallbackList</code> and <code>oneway</code> callbacks.</td><td>Privilege escalation; one bad client stalls all the others.</td></tr>
+                <tr><td>Vehicle data</td><td>Check status and area config before reading or writing; trust the change event, not your own write.</td><td>UI shows a value the ECU never applied.</td></tr>
+              </tbody>
+            </table>
           </div>
         </section>
 
@@ -169,6 +868,98 @@ class VehicleDataController(private val context: Context) {
 
     private companion object {
         const val TAG = "VehicleData"
+    }
+}
+</script>
+
+<script type="text/plain" id="src-java">
+package com.oem.hvac;
+
+import android.car.Car;                                                  «1»
+import android.car.VehicleAreaSeat;
+import android.car.VehiclePropertyIds;
+import android.car.hardware.CarPropertyConfig;
+import android.car.hardware.CarPropertyValue;
+import android.car.hardware.property.AreaIdConfig;
+import android.car.hardware.property.CarPropertyManager;
+import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback;
+import android.content.Context;
+import android.util.Log;
+
+public final class VehicleDataController {
+    private static final String TAG = "VehicleData";
+
+    private final Context context;
+    private Car car;
+    private CarPropertyManager propertyManager;
+
+    public VehicleDataController(Context context) {
+        this.context = context;
+    }
+
+    public void connect() {
+        car = Car.createCar(                                            «2»
+                context, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER,
+                (connectedCar, ready) -> {
+                    if (!ready) {                                       «3»
+                        propertyManager = null;
+                        return;
+                    }
+                    propertyManager = (CarPropertyManager)
+                            connectedCar.getCarManager(Car.PROPERTY_SERVICE);  «4»
+                    subscribeSpeed();
+                });
+    }
+
+    // ------------------------------------------------------- Read speed
+    private final CarPropertyEventCallback speedCallback = new CarPropertyEventCallback() {  «5»
+        @Override
+        public void onChangeEvent(CarPropertyValue value) {
+            if (value.getStatus() != CarPropertyValue.STATUS_AVAILABLE) return;  «6»
+            float speedKmh = (Float) value.getValue() * 3.6f;           «7»
+            Log.d(TAG, String.format("speed=%.1f km/h ts=%d", speedKmh, value.getTimestamp()));
+        }
+
+        @Override
+        public void onErrorEvent(int propertyId, int areaId) {
+            Log.w(TAG, "Property error 0x" + Integer.toHexString(propertyId));
+        }
+    };
+
+    private void subscribeSpeed() {
+        if (propertyManager == null) return;
+        propertyManager.registerCallback(                               «8»
+                speedCallback,
+                VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                CarPropertyManager.SENSOR_RATE_NORMAL);
+    }
+
+    // ---------------------------------------------- Set HVAC temperature
+    public void setDriverTemperature(float celsius) {
+        CarPropertyManager pm = propertyManager;
+        if (pm == null) return;
+        int propId = VehiclePropertyIds.HVAC_TEMPERATURE_SET;
+        CarPropertyConfig<?> config = pm.getCarPropertyConfig(propId);  «9»
+        if (config == null) return;
+
+        int areaId = 0;
+        for (int id : config.getAreaIds()) {                            «10»
+            if ((id & VehicleAreaSeat.SEAT_ROW_1_LEFT) != 0) { areaId = id; break; }
+        }
+        if (areaId == 0) return;
+
+        AreaIdConfig<?> areaConfig = config.getAreaIdConfig(areaId);    «11»
+        float min = areaConfig.getMinValue() instanceof Float ? (Float) areaConfig.getMinValue() : 16f;
+        float max = areaConfig.getMaxValue() instanceof Float ? (Float) areaConfig.getMaxValue() : 28f;
+
+        if (!pm.isPropertyAvailable(propId, areaId)) return;            «12»
+        pm.setFloatProperty(propId, areaId, Math.max(min, Math.min(max, celsius)));  «13»
+    }
+
+    public void disconnect() {
+        if (propertyManager != null) propertyManager.unregisterCallback(speedCallback);  «14»
+        if (car != null) car.disconnect();
+        car = null;
     }
 }
 </script>

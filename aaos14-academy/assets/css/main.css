@@ -352,6 +352,11 @@ table.t td:first-child { color: var(--text); font-weight: 550; }
 .tab-list button[aria-selected="true"] { background: var(--surface-hi); color: var(--blue); box-shadow: inset 0 0 0 1px var(--border-hi); }
 .tab-panel { display: none; margin-top: 16px; animation: fade 0.25s ease; }
 .tab-panel.active { display: block; }
+/* Kotlin / Java switch around code blocks (core.js initLangSwitch) */
+.lang-switch { margin: 16px 0; }
+.lang-switch > .tab-list button { padding-top: 5px; padding-bottom: 5px; font-size: 0.8rem; }
+.lang-switch > .tab-panel { margin-top: 8px; }
+.lang-switch > .tab-panel > .code-block { margin: 0; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* Prev/next pager */

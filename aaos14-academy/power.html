@@ -108,6 +108,7 @@
               <p>Garage Mode is the <strong>night cleaning crew</strong> at a shopping mall: the customers have left (driver gone), the lobby lights are off, but staff still mop the floors and restock shelves (OTA, sync). They must finish before the doors are locked (timeout), and if a customer comes back (CANCEL_SHUTDOWN) they stop immediately and reopen.</p>
             </div>
           </div>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="GarageJob.kt" data-label="Kotlin">
 // Schedule a job that only runs in Garage Mode (idle) on an unmetered network
 val job = JobInfo.Builder(JOB_ID, ComponentName(context, MapSyncJobService::class.java))
@@ -117,6 +118,16 @@ val job = JobInfo.Builder(JOB_ID, ComponentName(context, MapSyncJobService::clas
     .build()
 context.getSystemService(JobScheduler::class.java).schedule(job)
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="GarageJob.java" data-label="Java">
+// Schedule a job that only runs in Garage Mode (idle) on an unmetered network
+JobInfo job = new JobInfo.Builder(JOB_ID, new ComponentName(context, MapSyncJobService.class))
+        .setRequiresDeviceIdle(true)                 // AAOS: idle == Garage Mode
+        .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+        .setPersisted(true)                          // survives reboots
+        .build();
+context.getSystemService(JobScheduler.class).schedule(job);
+          </script>
+          </div>
         </section>
 
         <section class="doc-section" id="power-policy" data-title="Power Policy & Remote Access">

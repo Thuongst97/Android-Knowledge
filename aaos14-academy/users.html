@@ -100,6 +100,7 @@
                 <li><b>Android creates the user</b>UserManagerService allocates the next user ID, creates <code>/data/user/&lt;id&gt;</code>, installs system apps for the new user and applies default restrictions.</li>
                 <li><b>Result</b>The callback receives a <code>UserCreationResult</code>. Typically the UI then switches to the new user and runs a short setup flow (name, key fob association, preferences).</li>
               </ol>
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — create (Android 14 system API, abridged)" data-label="Kotlin">
 val carUserManager = car.getCarManager(Car.CAR_USER_SERVICE) as CarUserManager
 
@@ -117,6 +118,24 @@ carUserManager.createUser(request, mainExecutor) { result ->
     }
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="ProfileManager.java — create (Android 14 system API, abridged)" data-label="Java">
+CarUserManager carUserManager = (CarUserManager) car.getCarManager(Car.CAR_USER_SERVICE);
+
+UserCreationRequest request = new UserCreationRequest.Builder()
+        .setName("Alex")
+        .setAdmin()                                  // optional: can manage other users
+        .build();
+
+carUserManager.createUser(request, getMainExecutor(), result -> {
+    if (result.isSuccess()) {
+        UserHandle newUser = result.getUser();       // e.g. user 11
+        startOnboarding(newUser);
+    } else {
+        Log.w(TAG, "createUser failed, status=" + result.getStatus());
+    }
+});
+              </script>
+              </div>
             </div>
 
             <div class="tab-panel" data-panel="switch">
@@ -127,6 +146,7 @@ carUserManager.createUser(request, mainExecutor) { result ->
                 <li><b>Tell the vehicle it's done</b><code>SWITCH_USER</code> with <code>ANDROID_POST_SWITCH</code>; the vehicle broadcasts the new active profile so ECUs restore their settings.</li>
                 <li><b>Lifecycle events</b>Listeners receive <code>SWITCHING</code>, <code>UNLOCKING</code>, <code>UNLOCKED</code>, <code>POST_UNLOCKED</code>; CarService re-binds <code>user=foreground</code> plug-in services.</li>
               </ol>
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — switch (abridged)" data-label="Kotlin">
 val request = UserSwitchRequest.Builder(UserHandle.of(11)).build()
 
@@ -137,6 +157,18 @@ carUserManager.switchUser(request, mainExecutor) { result ->
     }
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="ProfileManager.java — switch (abridged)" data-label="Java">
+UserSwitchRequest request = new UserSwitchRequest.Builder(UserHandle.of(11)).build();
+
+carUserManager.switchUser(request, getMainExecutor(), result -> {
+    if (result.isSuccess()) {
+        Log.i(TAG, "Now driving as user 11");
+    } else {
+        showError(result.getStatus());               // e.g. rejected by the vehicle (HAL)
+    }
+});
+              </script>
+              </div>
               <p class="small">See the full interactive flow, including the vehicle side, in <a href="#switch-sim">4.4</a>.</p>
             </div>
 
@@ -146,6 +178,7 @@ carUserManager.switchUser(request, mainExecutor) { result ->
                 <li><b>Android removes</b>The user is stopped, its storage and keys destroyed, accounts removed.</li>
                 <li><b>Notify the vehicle</b><code>REMOVE_USER</code> tells ECUs to delete that profile's data (seat memory slot, cluster layout, key fob association).</li>
               </ol>
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — remove (abridged)" data-label="Kotlin">
 val request = UserRemovalRequest.Builder(UserHandle.of(11)).build()
 
@@ -153,6 +186,14 @@ carUserManager.removeUser(request, mainExecutor) { result ->
     if (!result.isSuccess) Log.w(TAG, "removeUser failed, status=" + result.status)
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="ProfileManager.java — remove (abridged)" data-label="Java">
+UserRemovalRequest request = new UserRemovalRequest.Builder(UserHandle.of(11)).build();
+
+carUserManager.removeUser(request, getMainExecutor(), result -> {
+    if (!result.isSuccess()) Log.w(TAG, "removeUser failed, status=" + result.getStatus());
+});
+              </script>
+              </div>
               <div class="callout warn">
                 <div class="ci">⚠️</div>
                 <div><span class="ct">Keep at least one admin</span>
@@ -163,6 +204,7 @@ carUserManager.removeUser(request, mainExecutor) { result ->
 
             <div class="tab-panel" data-panel="start">
               <p>With Android 14 MUMD, a passenger's user is <strong>started in the background and made visible on a specific display</strong> instead of switching the whole car.</p>
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="PassengerLogin.kt — MUMD (abridged)" data-label="Kotlin">
 // Display that belongs to the rear-left occupant zone
 val zone = ozm.allOccupantZones.first { it.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_REAR_PASSENGER }
@@ -176,6 +218,22 @@ carUserManager.startUser(request, mainExecutor) { result ->
     if (result.isSuccess) Log.i(TAG, "User 12 visible on display " + displayId)
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="PassengerLogin.java — MUMD (abridged)" data-label="Java">
+// Display that belongs to the rear-left occupant zone
+OccupantZoneInfo zone = ozm.getAllOccupantZones().stream()
+        .filter(z -> z.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_REAR_PASSENGER)
+        .findFirst().orElseThrow();
+int displayId = ozm.getDisplayForOccupant(zone, CarOccupantZoneManager.DISPLAY_TYPE_MAIN).getDisplayId();
+
+UserStartRequest request = new UserStartRequest.Builder(UserHandle.of(12))
+        .setDisplayId(displayId)                     // visible background user on that display
+        .build();
+
+carUserManager.startUser(request, getMainExecutor(), result -> {
+    if (result.isSuccess()) Log.i(TAG, "User 12 visible on display " + displayId);
+});
+              </script>
+              </div>
               <p class="small muted">Audio and input follow automatically: the occupant zone of that display is now bound to user 12. See <a href="displays.html#mumd">Multi-Display → MUMD</a>.</p>
             </div>
 
@@ -279,6 +337,7 @@ adb shell dumpsys car_service --services CarUserService
               </tbody>
             </table>
           </div>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileSyncService.kt — user=foreground plug-in (abridged)" data-label="Kotlin">
 val filter = UserLifecycleEventFilter.Builder()
     .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING)
@@ -294,6 +353,24 @@ carUserManager.addListener(executor, filter) { event ->
     }
 }
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="ProfileSyncService.java — user=foreground plug-in (abridged)" data-label="Java">
+UserLifecycleEventFilter filter = new UserLifecycleEventFilter.Builder()
+        .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING)
+        .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)
+        .build();
+
+carUserManager.addListener(executor, filter, event -> {
+    switch (event.getEventType()) {
+        case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING:
+            saveCabinPreferences(event.getPreviousUserHandle());
+            break;
+        case CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED:
+            pushCabinPreferencesToVehicle(event.getUserHandle());   // CarPropertyManager writes
+            break;
+    }
+});
+          </script>
+          </div>
           <p class="small muted">The request/result classes and listener APIs shown on this page are Android 14 car system APIs; snippets are abridged — check <code>android.car.user</code> in your branch for exact signatures.</p>
           <div class="grid grid-2 mt">
             <div class="glass card"><h4 class="c-blue">Never assume one user</h4><p class="small">Your app can run as several instances at once (driver + passengers). Keep state per user; never store personal data in user 0.</p></div>
