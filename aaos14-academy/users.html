@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User Profiles — AAOS 14 Academy</title>
+  <meta name="description" content="How Android Automotive OS 14 manages users and multiple driver/passenger profiles: headless system user, add/switch/remove users, User HAL, MUMD, and syncing profiles to the cluster and other ECUs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="users">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 04</span></nav>
+          <div class="eyebrow">Module 04 · Hands-on</div>
+          <h1>Automotive Android User Profiles</h1>
+          <p class="lead">A family car has many drivers. Each expects <em>their</em> seat position, mirrors, cluster layout, playlists and accounts the moment they get in. AAOS builds this on Android's multi-user system, extended with a <strong>User HAL</strong> so the vehicle itself — key fobs, seat modules, the cluster — takes part in every user operation.</p>
+          <div class="page-meta"><span>⏱ 30 min read</span><span>🎯 Intermediate</span><span>📂 CarUserService · UserManagerService · User HAL properties</span></div>
+        </header>
+
+        <section class="doc-section" id="model" data-title="How Android models users">
+          <div class="sec-head"><h2><span class="sec-num">4.1</span>How Android models users</h2></div>
+          <p>Every Android user has its own user ID, its own <code>/data/user/&lt;id&gt;</code> storage, its own app data, accounts and settings. Apps are installed once but run as separate instances per user (UID = userId × 100000 + appId). AAOS adds one key twist: <strong>Headless System User Mode (HSUM)</strong>.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-users"></div></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>User type</th><th>Example ID</th><th>Role in the car</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td>Headless system user</td><td><code>0</code></td><td>Runs vehicle-wide services; never shown on a display</td><td>CarService, system services and <code>user=system</code> plug-ins live here. No launcher, no personal data.</td></tr>
+                <tr><td>Full user (driver)</td><td><code>10</code></td><td>The <strong>current</strong> (foreground) user on the driver's displays</td><td>Created at first boot (setup wizard). Can be an <em>admin</em> who manages other users.</td></tr>
+                <tr><td>Full user (passenger)</td><td><code>11</code>, <code>12</code></td><td>Android 14 MUMD: <strong>visible background users</strong> on passenger/rear displays</td><td>Run concurrently with the driver, each on their occupant zone's display.</td></tr>
+                <tr><td>Guest user</td><td><code>13</code></td><td>Valet, rental, a friend borrowing the car</td><td>Ephemeral: its data is wiped when the guest session ends.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>The car is a <strong>shared apartment</strong>. User 0 is the <strong>building's facility manager</strong> — always on duty, keeps the heating and electricity running, but has no bedroom of their own. Each driver or passenger is a <strong>tenant with a locked room</strong> (their storage) full of their own belongings (apps, accounts, preferences). A guest gets a hotel-style room that is cleaned out when they leave.</p>
+            </div>
+          </div>
+          <div class="callout note">
+            <div class="ci">ℹ️</div>
+            <div><span class="ct">Why headless?</span>
+              <p>On a phone, user 0 is also the owner's personal user. In a car that would make the first driver “special” forever and would stop vehicle services during user switches. HSUM keeps vehicle-wide services running in user 0 while personal users come and go.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="architecture" data-title="User management architecture">
+          <div class="sec-head"><h2><span class="sec-num">4.2</span>User management architecture</h2></div>
+          <p>Three layers cooperate on every user operation: the Android framework (which really creates/starts/stops users), <strong>CarUserService</strong> (car policy and orchestration) and the <strong>User HAL</strong> — a set of VHAL properties through which the vehicle can approve, veto or react to user changes.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-user-arch"></div></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>User HAL property</th><th>Direction</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td><code>INITIAL_USER_INFO</code></td><td>Android → vehicle → Android</td><td>At boot, asks the vehicle which user to start (e.g. the user associated with the key fob that unlocked the car), or whether to create one.</td></tr>
+                <tr><td><code>SWITCH_USER</code></td><td>Both ways</td><td>Android asks the vehicle to approve a switch (<code>ANDROID_SWITCH</code> → <code>VEHICLE_RESPONSE</code>), then reports completion (<code>ANDROID_POST_SWITCH</code>). The vehicle can also request a switch (<code>VEHICLE_REQUEST</code>).</td></tr>
+                <tr><td><code>CREATE_USER</code></td><td>Android → vehicle → Android</td><td>Lets the vehicle allocate its own profile slot (seat memory, cluster profile) before Android finalizes the new user.</td></tr>
+                <tr><td><code>REMOVE_USER</code></td><td>Android → vehicle</td><td>Notification so ECUs can free that profile's stored data.</td></tr>
+                <tr><td><code>USER_IDENTIFICATION_ASSOCIATION</code></td><td>Both ways</td><td>Associates the current user with identification mechanisms: <code>KEY_FOB</code>, <code>CUSTOM_1…4</code> (e.g. phone key, face ID, driver card).</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="ci">✅</div>
+            <div><span class="ct">Optional by design</span>
+              <p>The User HAL is optional. If the VHAL does not support these properties, CarUserService performs plain Android user operations and the vehicle is simply not consulted. Supporting them is what turns “Android users” into true <strong>vehicle profiles</strong>.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="operations" data-title="Add, switch, remove users">
+          <div class="sec-head"><h2><span class="sec-num">4.3</span>User operations: add, switch, remove, start, guest</h2></div>
+          <p>Car apps (Settings, a profile picker, an OEM welcome app) use the system API <code>CarUserManager</code> rather than <code>UserManager</code> directly, so that CarService can apply car policy and involve the User HAL. All operations are asynchronous and require <code>signature|privileged</code> permissions such as <code>android.permission.MANAGE_USERS</code> / <code>CREATE_USERS</code>.</p>
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="add" aria-selected="true">Add user</button>
+              <button data-tab="switch">Switch user</button>
+              <button data-tab="remove">Remove user</button>
+              <button data-tab="start">Start on a display (MUMD)</button>
+              <button data-tab="guest">Guest & limits</button>
+              <button data-tab="adb">adb cheat sheet</button>
+            </div>
+
+            <div class="tab-panel" data-panel="add">
+              <ol class="steps-list">
+                <li><b>Request</b>The UI calls <code>CarUserManager.createUser()</code> with a name and flags (admin or not, guest or full).</li>
+                <li><b>Vehicle first</b>CarUserService sends <code>CREATE_USER</code> to the User HAL so the vehicle can reserve a profile slot (or refuse, e.g. when all seat-memory slots are used).</li>
+                <li><b>Android creates the user</b>UserManagerService allocates the next user ID, creates <code>/data/user/&lt;id&gt;</code>, installs system apps for the new user and applies default restrictions.</li>
+                <li><b>Result</b>The callback receives a <code>UserCreationResult</code>. Typically the UI then switches to the new user and runs a short setup flow (name, key fob association, preferences).</li>
+              </ol>
+              <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — create (Android 14 system API, abridged)" data-label="Kotlin">
+val carUserManager = car.getCarManager(Car.CAR_USER_SERVICE) as CarUserManager
+
+val request = UserCreationRequest.Builder()
+    .setName("Alex")
+    .setAdmin()                                  // optional: can manage other users
+    .build()
+
+carUserManager.createUser(request, mainExecutor) { result ->
+    if (result.isSuccess) {
+        val newUser = result.user                // UserHandle, e.g. user 11
+        startOnboarding(newUser)
+    } else {
+        Log.w(TAG, "createUser failed, status=" + result.status)
+    }
+}
+              </script>
+            </div>
+
+            <div class="tab-panel" data-panel="switch">
+              <ol class="steps-list">
+                <li><b>Request</b><code>CarUserManager.switchUser()</code> with the target user. CarUserService rejects invalid requests (unknown user, already current, a switch already in progress) and may apply OEM policy (e.g. no switching while driving).</li>
+                <li><b>Ask the vehicle</b><code>SWITCH_USER</code> with message type <code>ANDROID_SWITCH</code>. The vehicle answers <code>VEHICLE_RESPONSE</code> with SUCCESS or FAILURE within a timeout.</li>
+                <li><b>Android switches</b>ActivityManager moves the old user to the background (or stops it), starts and unlocks the target user and shows its launcher.</li>
+                <li><b>Tell the vehicle it's done</b><code>SWITCH_USER</code> with <code>ANDROID_POST_SWITCH</code>; the vehicle broadcasts the new active profile so ECUs restore their settings.</li>
+                <li><b>Lifecycle events</b>Listeners receive <code>SWITCHING</code>, <code>UNLOCKING</code>, <code>UNLOCKED</code>, <code>POST_UNLOCKED</code>; CarService re-binds <code>user=foreground</code> plug-in services.</li>
+              </ol>
+              <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — switch (abridged)" data-label="Kotlin">
+val request = UserSwitchRequest.Builder(UserHandle.of(11)).build()
+
+carUserManager.switchUser(request, mainExecutor) { result ->
+    when {
+        result.isSuccess -> Log.i(TAG, "Now driving as user 11")
+        else -> showError(result.status)         // e.g. rejected by the vehicle (HAL)
+    }
+}
+              </script>
+              <p class="small">See the full interactive flow, including the vehicle side, in <a href="#switch-sim">4.4</a>.</p>
+            </div>
+
+            <div class="tab-panel" data-panel="remove">
+              <ol class="steps-list">
+                <li><b>Request</b><code>CarUserManager.removeUser()</code>. Removing the <em>current</em> user is handled by first switching to another user (or creating a new one if needed) — the car must always have a driver user.</li>
+                <li><b>Android removes</b>The user is stopped, its storage and keys destroyed, accounts removed.</li>
+                <li><b>Notify the vehicle</b><code>REMOVE_USER</code> tells ECUs to delete that profile's data (seat memory slot, cluster layout, key fob association).</li>
+              </ol>
+              <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileManager.kt — remove (abridged)" data-label="Kotlin">
+val request = UserRemovalRequest.Builder(UserHandle.of(11)).build()
+
+carUserManager.removeUser(request, mainExecutor) { result ->
+    if (!result.isSuccess) Log.w(TAG, "removeUser failed, status=" + result.status)
+}
+              </script>
+              <div class="callout warn">
+                <div class="ci">⚠️</div>
+                <div><span class="ct">Keep at least one admin</span>
+                  <p>Product policy usually forbids removing the last admin user, and resets to a fresh driver user rather than leaving the car without one.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="tab-panel" data-panel="start">
+              <p>With Android 14 MUMD, a passenger's user is <strong>started in the background and made visible on a specific display</strong> instead of switching the whole car.</p>
+              <script type="text/plain" data-code data-lang="kotlin" data-file="PassengerLogin.kt — MUMD (abridged)" data-label="Kotlin">
+// Display that belongs to the rear-left occupant zone
+val zone = ozm.allOccupantZones.first { it.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_REAR_PASSENGER }
+val displayId = ozm.getDisplayForOccupant(zone, CarOccupantZoneManager.DISPLAY_TYPE_MAIN).displayId
+
+val request = UserStartRequest.Builder(UserHandle.of(12))
+    .setDisplayId(displayId)                     // visible background user on that display
+    .build()
+
+carUserManager.startUser(request, mainExecutor) { result ->
+    if (result.isSuccess) Log.i(TAG, "User 12 visible on display " + displayId)
+}
+              </script>
+              <p class="small muted">Audio and input follow automatically: the occupant zone of that display is now bound to user 12. See <a href="displays.html#mumd">Multi-Display → MUMD</a>.</p>
+            </div>
+
+            <div class="tab-panel" data-panel="guest">
+              <ul>
+                <li><strong>Guest user:</strong> created with the guest type, ephemeral — removed (and its data wiped) when the session ends. Ideal for valet/rental modes, often combined with user restrictions (no app installs, no account changes).</li>
+                <li><strong>Maximum users:</strong> limited by framework configuration (e.g. <code>config_multiuserMaxRunningUsers</code> for concurrently running users) and by the vehicle's profile slots.</li>
+                <li><strong>Restrictions:</strong> <code>UserManager</code> restrictions (<code>DISALLOW_ADD_USER</code>, <code>DISALLOW_INSTALL_APPS</code>…) let an admin limit what other profiles may do.</li>
+                <li><strong>Pre-created users:</strong> to make “add profile” instant, products can pre-create users in the background and convert them on demand.</li>
+              </ul>
+            </div>
+
+            <div class="tab-panel" data-panel="adb">
+              <script type="text/plain" data-code data-lang="conf" data-file="Useful shell commands" data-label="adb">
+# List users and see which is current / running
+adb shell pm list users
+adb shell cmd user list -v
+
+# Create, switch, remove (framework level — bypasses car policy, for debugging only)
+adb shell pm create-user Alex
+adb shell am switch-user 11
+adb shell pm remove-user 11
+
+# Car-aware variants that go through CarUserService and the User HAL
+adb shell cmd car_service help          # lists create-user, switch-user, remove-user …
+adb shell cmd car_service switch-user 11
+
+# Inspect state: current user, lifecycle history, User HAL support
+adb shell dumpsys car_service --services CarUserService
+              </script>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="switch-sim" data-title="User switch simulator">
+          <div class="sec-head"><h2><span class="sec-num">4.4</span>User switch with vehicle profile sync (interactive)</h2></div>
+          <p>Follow a switch from driver <strong>Alex (user 10)</strong> to driver <strong>Bea (user 11)</strong> — from the profile picker, through CarUserService and the User HAL, to the seat module and the cluster restoring Bea's settings.</p>
+          <div id="switch-seq"></div>
+        </section>
+
+        <section class="doc-section" id="sync" data-title="Syncing profiles across ECUs">
+          <div class="sec-head"><h2><span class="sec-num">4.5</span>Syncing the profile across AVN, cluster & ECUs</h2></div>
+          <p>An Android user only owns what lives inside Android. A real “driver profile” spans many computers: the AVN/IVI (Android), the cluster VM, the seat and mirror modules, HVAC, HUD and the telematics backend. The key design decision is <strong>who stores each setting</strong> and <strong>what triggers the sync</strong>.</p>
+
+          <h3>Profile identity mapping</h3>
+          <div class="formula" style="font-size:.9rem">
+            Android <span class="var">userId</span> (10, 11…) <span class="op">⇄</span> vehicle <span class="var">profileId</span> (1, 2…) <span class="op">⇄</span> identifiers (<span class="c-green">key fob #</span>, phone key, face ID)
+          </div>
+          <p class="small muted">The mapping is owned by the vehicle side (MCU/body domain or a profile ECU), established through <code>CREATE_USER</code> / <code>USER_IDENTIFICATION_ASSOCIATION</code> and used by <code>INITIAL_USER_INFO</code> at boot.</p>
+
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Setting</th><th>Stored in</th><th>Sync trigger</th><th>Mechanism</th></tr></thead>
+              <tbody>
+                <tr><td>Seat position, mirrors, steering column</td><td>Seat / door ECU memory slot</td><td>Key fob at unlock (pre-boot) and <code>ANDROID_POST_SWITCH</code></td><td>MCU broadcasts the active profile ID; the ECU recalls its own slot</td></tr>
+                <tr><td>Cluster layout, theme, units</td><td>Cluster VM per-profile store</td><td>Active-profile broadcast</td><td>CAN / SOME-IP message to the cluster; AAOS-rendered cluster content follows the current user via ClusterHomeService</td></tr>
+                <tr><td>Preferred cabin temperature, drive mode, HUD brightness</td><td>Android per-user settings <em>or</em> the ECU</td><td><code>USER_UNLOCKED</code></td><td>A <code>user=foreground</code> plug-in service writes Vehicle Properties via <code>CarPropertyManager</code></td></tr>
+                <tr><td>Ambient light color</td><td>Body ECU</td><td>Active-profile broadcast</td><td>VHAL vendor property or ECU-side recall</td></tr>
+                <tr><td>Media favorites, navigation history, accounts</td><td>Android <code>/data/user/&lt;id&gt;</code></td><td>— (isolated per user)</td><td>Android Backup / OEM cloud account for portability across cars</td></tr>
+                <tr><td>Profile in the companion app / cloud</td><td>OEM backend</td><td>Account sign-in, OTA of settings</td><td>Telematics unit ⇄ backend; restored into the user on first sign-in</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Try it: apply a profile to the whole vehicle</h3>
+          <div class="glass card">
+            <div class="matrix-cols" id="profile-pick"></div>
+            <div id="profile-ecus" class="mt"></div>
+          </div>
+
+          <h3>Boot with key fob → the right user from the start</h3>
+          <p>Without a User HAL, the car boots into the last user and then switches — slow, and seats move only after Android is up. With <code>INITIAL_USER_INFO</code>, the vehicle tells Android which user to start <em>first</em>, while the seat module has already started moving before Android finished booting.</p>
+          <div id="boot-seq"></div>
+
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Design pitfalls</span>
+              <ul>
+                <li><strong>Split brain:</strong> if a switch fails after the vehicle approved it, send the post-switch state for the user that is <em>actually</em> current so ECUs never show a different profile than Android.</li>
+                <li><strong>Safety first:</strong> never move seats or steering while driving because of a profile change; the MCU must gate actuator recalls on vehicle state.</li>
+                <li><strong>Privacy:</strong> keep personal data in the user's own storage; ECUs should only hold the minimum settings needed, tied to a profile ID — not names or accounts.</li>
+                <li><strong>Timeouts:</strong> User HAL calls have bounded timeouts; a slow vehicle response must not block the driver from using the car.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="lifecycle" data-title="Lifecycle events & best practices">
+          <div class="sec-head"><h2><span class="sec-num">4.6</span>Lifecycle events & best practices for apps</h2></div>
+          <p>System apps and plug-in services observe user changes through <code>CarUserManager</code> lifecycle listeners (with an optional event filter):</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Event</th><th>When</th><th>Typical reaction</th></tr></thead>
+              <tbody>
+                <tr><td><code>USER_LIFECYCLE_EVENT_TYPE_STARTING</code></td><td>User is being started</td><td>Prepare per-user resources</td></tr>
+                <tr><td><code>…_SWITCHING</code></td><td>Current user is changing (has previous + new user)</td><td>Save the old user's state, stop personal sessions</td></tr>
+                <tr><td><code>…_UNLOCKING / _UNLOCKED</code></td><td>Credential-encrypted storage is available</td><td>Read per-user preferences, push them to the vehicle</td></tr>
+                <tr><td><code>…_POST_UNLOCKED</code></td><td>Unlock processing finished</td><td>Start non-urgent work</td></tr>
+                <tr><td><code>…_VISIBLE / _INVISIBLE</code> (Android 14)</td><td>A user becomes visible on / leaves a display</td><td>MUMD passenger handling</td></tr>
+                <tr><td><code>…_STOPPING / _STOPPED</code>, <code>_CREATED / _REMOVED</code></td><td>Stop, create, remove</td><td>Release resources, clean caches, update profile lists</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="ProfileSyncService.kt — user=foreground plug-in (abridged)" data-label="Kotlin">
+val filter = UserLifecycleEventFilter.Builder()
+    .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING)
+    .addEventType(CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)
+    .build()
+
+carUserManager.addListener(executor, filter) { event ->
+    when (event.eventType) {
+        CarUserManager.USER_LIFECYCLE_EVENT_TYPE_SWITCHING ->
+            saveCabinPreferences(event.previousUserHandle)
+        CarUserManager.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED ->
+            pushCabinPreferencesToVehicle(event.userHandle)   // CarPropertyManager writes
+    }
+}
+          </script>
+          <p class="small muted">The request/result classes and listener APIs shown on this page are Android 14 car system APIs; snippets are abridged — check <code>android.car.user</code> in your branch for exact signatures.</p>
+          <div class="grid grid-2 mt">
+            <div class="glass card"><h4 class="c-blue">Never assume one user</h4><p class="small">Your app can run as several instances at once (driver + passengers). Keep state per user; never store personal data in user 0.</p></div>
+            <div class="glass card"><h4 class="c-green">Put vehicle-wide logic in user 0</h4><p class="small">Things that must survive switches (telemetry, connectivity) belong in <code>user=system</code> plug-ins; per-person logic in <code>user=foreground</code> ones.</p></div>
+            <div class="glass card"><h4 class="c-purple">Go through CarUserManager</h4><p class="small">Calling <code>UserManager</code>/<code>ActivityManager</code> directly skips car policy and the User HAL — ECUs won't follow.</p></div>
+            <div class="glass card"><h4 class="c-amber">Design for failure</h4><p class="small">The vehicle can veto a switch. Show a clear message and keep the current profile fully usable.</p></div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/users.js"></script>
+</body>
+</html>

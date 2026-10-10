@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Power Management & Garage Mode — AAOS 14 Academy</title>
+  <meta name="description" content="The AAOS 14 power state machine: ON, SHUTDOWN_PREPARE, WAIT_FOR_VHAL, Suspend-to-RAM, Hibernation and Garage Mode.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="power">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Power</span></nav>
+          <div class="eyebrow">Module 03.1 · Core Subsystems</div>
+          <h1>Power Management & Garage Mode</h1>
+          <p class="lead">A phone has a battery and a user who presses the power button. A car has a 12V battery that must survive weeks in a parking lot, and Android must be “instantly on” when the driver opens the door. That is why AAOS has its own power state machine.</p>
+          <div class="page-meta"><span>⏱ 20 min read</span><span>🎯 Intermediate</span><span>📂 service/src/com/android/car/power</span></div>
+        </header>
+
+        <section class="doc-section" id="overview" data-title="Power management overview">
+          <div class="sec-head"><h2><span class="sec-num">3.1.1</span>Overview</h2></div>
+          <p>The authority over power <strong>does not live in Android</strong> but in the MCU (which knows the key state, doors and battery voltage). Android only “negotiates” with the MCU through two Vehicle Properties:</p>
+          <div class="grid grid-2">
+            <div class="glass card">
+              <h4 class="c-amber">AP_POWER_STATE_REQ <span class="badge amber">VHAL → Android</span></h4>
+              <p class="small">The MCU commands: <code>ON</code>, <code>SHUTDOWN_PREPARE</code> (with a parameter such as <code>CAN_SLEEP</code>, <code>CAN_HIBERNATE</code>, <code>SHUTDOWN_ONLY</code>, <code>SLEEP_IMMEDIATELY</code>…), <code>CANCEL_SHUTDOWN</code>, <code>FINISHED</code>.</p>
+            </div>
+            <div class="glass card">
+              <h4 class="c-green">AP_POWER_STATE_REPORT <span class="badge green">Android → VHAL</span></h4>
+              <p class="small">Android reports: <code>WAIT_FOR_VHAL</code>, <code>ON</code>, <code>SHUTDOWN_PREPARE</code>, <code>SHUTDOWN_POSTPONE</code>, <code>DEEP_SLEEP_ENTRY/EXIT</code>, <code>HIBERNATION_ENTRY/EXIT</code>, <code>SHUTDOWN_START</code>, <code>SHUTDOWN_CANCELLED</code>.</p>
+            </div>
+          </div>
+          <p class="mt">On the Android side, <strong>CarPowerManagementService (CPMS)</strong> inside CarService owns the state machine; apps and system services listen via <code>CarPowerManager.setListener()</code> / <code>addPowerPolicyListener()</code>. “AP” (Application Processor) is the SoC running Android.</p>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>The MCU is the <strong>building manager</strong> holding the master key; Android is an <strong>office worker</strong>. When the manager announces “the building is closing” (SHUTDOWN_PREPARE), the worker saves their files, may ask for extra time to finish pending tasks (SHUTDOWN_POSTPONE — Garage Mode), then reports “I'm leaving” (DEEP_SLEEP_ENTRY). Only the manager may flip the main breaker.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="state-machine" data-title="Interactive state machine">
+          <div class="sec-head"><h2><span class="sec-num">3.1.2</span>State machine (interactive)</h2></div>
+          <p>Click a state to see its details; the related transitions light up.</p>
+          <div class="sm-wrap mt">
+            <div class="sm-svg glass" id="sm-svg"></div>
+            <div class="info-panel glass" id="sm-info" aria-live="polite"></div>
+          </div>
+          <h3>Three ways to “turn off”</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Mode</th><th>What stays powered</th><th>Typical drain</th><th>Resume time</th><th>Notes</th></tr></thead>
+              <tbody>
+                <tr><td>Suspend-to-RAM <span class="badge green">Deep Sleep</span></td><td>DRAM self-refresh + MCU</td><td>a few mA</td><td class="yes">~1–3 s</td><td>Default for most OEMs; apps stay in memory, “on means ready”.</td></tr>
+                <tr><td>Hibernation <span class="badge purple">Suspend-to-Disk</span></td><td>MCU only</td><td>≈ 0</td><td class="part">~5–10 s</td><td>RAM image written to flash; good for long parking. Consumes flash write cycles.</td></tr>
+                <tr><td>Shutdown <span class="badge gray">Cold boot</span></td><td>MCU only</td><td>≈ 0</td><td class="no">10–30 s</td><td>Used for OTA updates, faults or a weak battery.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small muted">Figures are illustrative and depend on the SoC, RAM size and OEM optimizations.</p>
+        </section>
+
+        <section class="doc-section" id="state-table" data-title="States & VHAL signals">
+          <div class="sec-head"><h2><span class="sec-num">3.1.3</span>States & VHAL signals</h2></div>
+          <p>State constants in <code>CarPowerManager</code> (Android 14). <code>PRE_SHUTDOWN_PREPARE</code> and the <code>POST_*</code> states let listeners signal completion before CPMS moves on.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>CPMS state</th><th>Entered when</th><th>Reported to VHAL</th><th>What happens</th></tr></thead>
+              <tbody>
+                <tr><td><code>WAIT_FOR_VHAL</code></td><td>After boot / resume / cancelled shutdown</td><td><code>WAIT_FOR_VHAL</code></td><td>CPMS waits for the MCU to send <code>REQ=ON</code>. The display may still be off.</td></tr>
+                <tr><td><code>ON</code></td><td><code>REQ=ON</code></td><td><code>ON</code></td><td>Normal operation; power policy <code>system_power_policy_all_on</code> applied.</td></tr>
+                <tr><td><code>PRE_SHUTDOWN_PREPARE</code></td><td><code>REQ=SHUTDOWN_PREPARE</code></td><td>—</td><td>Early notice to listeners; display off, <code>no_user_interaction</code> policy applied.</td></tr>
+                <tr><td><code>SHUTDOWN_PREPARE</code></td><td>After pre-prepare</td><td><code>SHUTDOWN_PREPARE</code>, then repeated <code>SHUTDOWN_POSTPONE</code></td><td>Runs <strong>Garage Mode</strong> (unless *_IMMEDIATELY); idle jobs execute.</td></tr>
+                <tr><td><code>SHUTDOWN_CANCELLED</code></td><td><code>REQ=CANCEL_SHUTDOWN</code> (driver returns)</td><td><code>SHUTDOWN_CANCELLED</code></td><td>Stops Garage Mode, back to <code>WAIT_FOR_VHAL</code> → <code>ON</code>.</td></tr>
+                <tr><td><code>SUSPEND_ENTER</code></td><td>Garage Mode done, parameter CAN_SLEEP</td><td><code>DEEP_SLEEP_ENTRY</code></td><td>Kernel writes <code>mem</code> to <code>/sys/power/state</code>; MCU cuts SoC power (DRAM kept).</td></tr>
+                <tr><td><code>SUSPEND_EXIT</code></td><td>MCU wakes the SoC</td><td><code>DEEP_SLEEP_EXIT</code></td><td>Resume, move to <code>WAIT_FOR_VHAL</code>.</td></tr>
+                <tr><td><code>HIBERNATION_ENTER</code></td><td>Parameter CAN_HIBERNATE</td><td><code>HIBERNATION_ENTRY</code></td><td>Kernel writes <code>disk</code> to <code>/sys/power/state</code>; RAM image to flash.</td></tr>
+                <tr><td><code>HIBERNATION_EXIT</code></td><td>Power-up, image restored</td><td><code>HIBERNATION_EXIT</code></td><td>Move to <code>WAIT_FOR_VHAL</code>.</td></tr>
+                <tr><td><code>SHUTDOWN_ENTER</code></td><td>Parameter SHUTDOWN_ONLY</td><td><code>SHUTDOWN_START</code></td><td>Full power-off; next start is a cold boot.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Common pitfall</span>
+              <p>Apps that listen for <code>SHUTDOWN_PREPARE</code> to save data must be fast and must <strong>not assume</strong> a real shutdown follows: if the driver reopens the door, the system jumps back to <code>ON</code> without rebooting. After Suspend-to-RAM, network connections, sockets and timers may be stale — handle <code>SUSPEND_EXIT</code>.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="garage-mode" data-title="Garage Mode sequence">
+          <div class="sec-head"><h2><span class="sec-num">3.1.4</span>Garage Mode — sequence flow</h2></div>
+          <p>Garage Mode is the window <strong>after the ignition is turned off</strong> during which Android keeps running (screen dark, no audio) to do background work: downloading OTA updates, dex optimization, data sync. Apps schedule work with <code>JobScheduler</code> using <code>setRequiresDeviceIdle(true)</code> — in a car, “idle” means Garage Mode.</p>
+          <div id="garage-seq" class="mt"></div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>Garage Mode is the <strong>night cleaning crew</strong> at a shopping mall: the customers have left (driver gone), the lobby lights are off, but staff still mop the floors and restock shelves (OTA, sync). They must finish before the doors are locked (timeout), and if a customer comes back (CANCEL_SHUTDOWN) they stop immediately and reopen.</p>
+            </div>
+          </div>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="GarageJob.kt" data-label="Kotlin">
+// Schedule a job that only runs in Garage Mode (idle) on an unmetered network
+val job = JobInfo.Builder(JOB_ID, ComponentName(context, MapSyncJobService::class.java))
+    .setRequiresDeviceIdle(true)                 // AAOS: idle == Garage Mode
+    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
+    .setPersisted(true)                          // survives reboots
+    .build()
+context.getSystemService(JobScheduler::class.java).schedule(job)
+          </script>
+        </section>
+
+        <section class="doc-section" id="power-policy" data-title="Power Policy & Remote Access">
+          <div class="sec-head"><h2><span class="sec-num">3.1.5</span>Power Policy & Remote Access</h2></div>
+          <p>A <strong>power policy</strong> defines <em>which components are enabled</em> in each state (AUDIO, DISPLAY, WIFI, BLUETOOTH, CELLULAR, LOCATION, MICROPHONE…). CPMS works with the <code>carpowerpolicyd</code> daemon to apply them. OEMs define policies in <code>/vendor/etc/automotive/power_policy.xml</code>.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>System policy</th><th>Used when</th><th>Main effect</th></tr></thead>
+              <tbody>
+                <tr><td><code>system_power_policy_all_on</code></td><td>ON</td><td>All components enabled.</td></tr>
+                <tr><td><code>system_power_policy_initial_on</code></td><td>Early boot</td><td>Only the minimum (audio, display, CPU) for a fast first frame.</td></tr>
+                <tr><td><code>system_power_policy_no_user_interaction</code></td><td>Garage Mode</td><td>Display, audio, microphone and input off; network and CPU kept on.</td></tr>
+                <tr><td><code>system_power_policy_suspend_prep</code></td><td>Before suspend</td><td>Gradually disables components to sleep safely.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout note">
+            <div class="ci">🆕</div>
+            <div><span class="ct">Android 14: Remote Access</span>
+              <p>Android 14 adds <code>CarRemoteAccessManager</code> and the <code>IRemoteAccess</code> HAL: a remote server (via the TCU) can <strong>wake</strong> Android while the car is asleep to run a task (e.g. a nightly OTA download), then go back to sleep. It complements Garage Mode — Garage Mode runs <em>right after</em> ignition off, Remote Access runs <em>whenever</em> the car is woken.</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/power-sm.js"></script>
+  <script src="assets/js/pages/power.js"></script>
+</body>
+</html>

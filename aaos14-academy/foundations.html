@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foundations & Ecosystem — AAOS 14 Academy</title>
+  <meta name="description" content="Android Auto vs Android Automotive OS vs phone AOSP, plus the real-world vehicle hardware: SoC, MCU, CAN/LIN and displays.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="foundations">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 01</span></nav>
+          <div class="eyebrow">Module 01 · Foundations</div>
+          <h1>Foundational Concepts & Ecosystem</h1>
+          <p class="lead">Before touching code, answer three questions: what “Android in the car” actually means, how it differs from a phone, and what hardware it runs on inside a vehicle.</p>
+          <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Beginner</span><span>📦 AOSP android-14.0.0</span></div>
+        </header>
+
+        <section class="doc-section" id="ecosystem" data-title="Three Android ecosystems in the car">
+          <div class="sec-head"><h2><span class="sec-num">1.1</span>Three Android ecosystems in the car</h2></div>
+          <p>“Android in the car” is confusing because <strong>three very different things</strong> share the Android name. The key differences are <em>where the operating system runs</em> and <em>who owns the vehicle hardware</em>.</p>
+
+          <div class="grid grid-3 mt">
+            <div class="mode-card glass" style="--accent:var(--amber)">
+              <h4>① Android Auto</h4>
+              <span class="badge amber">Projection Mode</span>
+              <div class="mode-flow">
+                <div>📱 Phone runs the apps</div><div class="arrow">↓ USB / Wi-Fi (video stream + touch)</div>
+                <div>🖥️ Head unit only displays</div><div class="arrow">↓ OEM's own OS</div>
+                <div>🚗 Linux / QNX / RTOS</div>
+              </div>
+              <p class="small">All logic runs on the <strong>phone</strong>. The car screen is a “smart external monitor”. Unplug the phone and it is gone.</p>
+            </div>
+            <div class="mode-card glass" style="--accent:var(--blue)">
+              <h4>② Android Automotive OS</h4>
+              <span class="badge">Standalone OS</span>
+              <div class="mode-flow">
+                <div>🧩 Apps installed on the car</div><div class="arrow">↓ Car API / CarService</div>
+                <div>⚙️ AAOS on the vehicle SoC</div><div class="arrow">↓ VHAL ⇄ MCU</div>
+                <div>🚗 CAN · LIN · Ethernet</div>
+              </div>
+              <p class="small">Android <strong>is the car's operating system</strong>. It can read speed and control climate, seats and power. No phone needed.</p>
+            </div>
+            <div class="mode-card glass" style="--accent:var(--green)">
+              <h4>③ AOSP on a phone</h4>
+              <span class="badge green">Handheld</span>
+              <div class="mode-flow">
+                <div>📲 Play Store apps</div><div class="arrow">↓ Android framework</div>
+                <div>🔧 Camera, sensor, radio HALs</div><div class="arrow">↓ Kernel drivers</div>
+                <div>🔋 Mobile SoC + battery</div>
+              </div>
+              <p class="small">A personal device: one user, one screen, a simple power cycle. No concept of a “vehicle”.</p>
+            </div>
+          </div>
+
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p><strong>Android Auto</strong> is like bringing your laptop to a meeting room and plugging it into the projector — the projector only displays, your laptop is the brain. <strong>AAOS</strong> is a smart meeting room with a built-in computer that also controls the building's lights, blinds and air conditioning. <strong>Phone AOSP</strong> is your personal laptop — powerful, but it knows nothing about the building.</p>
+            </div>
+          </div>
+
+          <div class="callout note">
+            <div class="ci">ℹ️</div>
+            <div><span class="ct">Note</span>
+              <p>A car running AAOS <strong>can still</strong> support Android Auto/CarPlay projection as an app. AAOS also comes in two flavors: <em>with GAS</em> (Google Automotive Services: Maps, Assistant, Play Store — requires a Google license, e.g. Volvo, Polestar, GM) and <em>without GAS</em> (the OEM builds its own store and services, common among Chinese OEMs).</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="matrix" data-title="Comparison matrix">
+          <div class="sec-head"><h2><span class="sec-num">1.2</span>Top-down comparison matrix</h2></div>
+          <p>Click a column to highlight that ecosystem. Read top to bottom: rows move from <em>where it runs</em> → <em>hardware access</em> → <em>apps</em> → <em>operations</em>.</p>
+          <div class="matrix-cols" role="group" aria-label="Choose a column">
+            <button class="btn sm" data-focus="0">Show all</button>
+            <button class="btn sm" data-focus="1">① Android Auto</button>
+            <button class="btn sm" data-focus="2">② AAOS</button>
+            <button class="btn sm" data-focus="3">③ Phone AOSP</button>
+          </div>
+          <div class="table-wrap">
+            <table class="t matrix" id="matrix-table">
+              <thead><tr><th>Criterion</th><th class="col-aa">Android Auto</th><th class="col-aaos">AAOS 14</th><th class="col-aosp">Phone AOSP</th></tr></thead>
+              <tbody>
+                <tr><td>Where the OS runs</td><td>On the phone</td><td>On the head unit SoC</td><td>On the phone SoC</td></tr>
+                <tr><td>Phone required?</td><td class="no">Mandatory</td><td class="yes">No</td><td>—</td></tr>
+                <tr><td>Read vehicle data (speed, gear, fuel)</td><td class="part">Very limited, via head unit</td><td class="yes">Full, via <code>CarPropertyManager</code></td><td class="no">No</td></tr>
+                <tr><td>Control the vehicle (HVAC, seats, windows)</td><td class="no">No</td><td class="yes">Yes, permission-gated</td><td class="no">No</td></tr>
+                <tr><td>Hardware layer</td><td>No vehicle HAL</td><td><strong>VHAL</strong> + Audio Control HAL + EVS…</td><td>Phone HALs (camera, sensors, radio)</td></tr>
+                <tr><td>Apps</td><td>Phone apps that support Auto (templates)</td><td>OEM system apps + Car App Library apps + car-optimized media/nav apps</td><td>Any Play Store app</td></tr>
+                <tr><td>User interface</td><td>Controlled by Google</td><td>Fully customized by the OEM (Launcher, SystemUI, RRO themes)</td><td>Phone OEM skin</td></tr>
+                <tr><td>Displays / users</td><td>1 car display</td><td>Multiple displays, occupant zones, concurrent users (MUMD)</td><td>One primary user</td></tr>
+                <tr><td>Power management</td><td>Follows the phone</td><td>Follows vehicle state: Garage Mode, Suspend-to-RAM, Hibernation</td><td>Doze / App Standby</td></tr>
+                <tr><td>Driving restrictions</td><td>Restricted templates</td><td><code>CarUxRestrictionsManager</code> by driving state</td><td>None</td></tr>
+                <tr><td>Updates</td><td>Update the app on the phone</td><td>OEM OTA (A/B), updatable CarService module</td><td>Phone OEM OTA</td></tr>
+                <tr><td>Safety responsibility</td><td>Google + head unit maker</td><td>Vehicle OEM (ISO 26262, UN R155/R156)</td><td>Phone OEM</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="deployment" data-title="Real-world deployment architecture">
+          <div class="sec-head"><h2><span class="sec-num">1.3</span>Real-world deployment architecture</h2></div>
+          <p>Android does not talk to the engine or the A/C directly. A real car contains <strong>two computing worlds</strong>: a high-performance SoC running Android (not real-time), and a real-time MCU guarding the vehicle buses. Click any block to see its role.</p>
+
+          <div class="deploy mt">
+            <div class="deploy-diagram glass" id="deploy-diagram">
+              <div class="dp-row-label">Displays & sensors</div>
+              <div class="dp-row">
+                <button class="dp-item" data-k="cluster"><b>Instrument Cluster</b><small>12.3" · LVDS/GMSL</small></button>
+                <button class="dp-item" data-k="ivi"><b>Center Display (IVI)</b><small>15.6" touch</small></button>
+                <button class="dp-item" data-k="pax"><b>Passenger / RSE</b><small>FPD-Link III</small></button>
+                <button class="dp-item" data-k="cam"><b>Camera / Mic</b><small>MIPI CSI · A2B</small></button>
+              </div>
+              <div class="dp-link">Serializer / Deserializer (SerDes)</div>
+              <div class="dp-soc">
+                <div class="dp-soc-title">🧠 SoC — e.g. Qualcomm SA8295P / Renesas R-Car / NXP i.MX 8</div>
+                <div class="dp-row">
+                  <button class="dp-item soc" data-k="hyp"><b>Hypervisor</b><small>QNX / Gunyah / Xen</small></button>
+                  <button class="dp-item soc" data-k="aaos"><b>VM: AAOS 14</b><small>IVI · VHAL</small></button>
+                  <button class="dp-item soc" data-k="clustervm"><b>VM: Cluster</b><small>QNX / Linux RT</small></button>
+                  <button class="dp-item soc" data-k="conn"><b>Connectivity</b><small>5G · Wi-Fi · BT · GNSS</small></button>
+                </div>
+              </div>
+              <div class="dp-link">SPI / UART / Ethernet — OEM-specific IPC protocol</div>
+              <div class="dp-row">
+                <button class="dp-item mcu" data-k="mcu"><b>Vehicle MCU</b><small>AURIX TC3xx / RH850 · AUTOSAR Classic</small></button>
+                <button class="dp-item mcu" data-k="gw"><b>Central Gateway</b><small>Routing + Firewall</small></button>
+              </div>
+              <div class="dp-link">Vehicle buses</div>
+              <div class="dp-row">
+                <button class="dp-item bus" data-k="can"><b>CAN FD</b><small>Body · HVAC · Chassis</small></button>
+                <button class="dp-item bus" data-k="lin"><b>LIN</b><small>Seat · Mirror · Ambient</small></button>
+                <button class="dp-item bus" data-k="eth"><b>Automotive Ethernet</b><small>100/1000BASE-T1</small></button>
+              </div>
+              <div class="dp-row">
+                <button class="dp-item ecu" data-k="hvac"><b>HVAC ECU</b><small>Climate</small></button>
+                <button class="dp-item ecu" data-k="bcm"><b>BCM</b><small>Body Control</small></button>
+                <button class="dp-item ecu" data-k="vcu"><b>VCU / ECM</b><small>Powertrain</small></button>
+                <button class="dp-item ecu" data-k="adas"><b>ADAS</b><small>Camera / Radar</small></button>
+              </div>
+            </div>
+            <div class="info-panel glass" id="deploy-info" aria-live="polite"></div>
+          </div>
+
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>The SoC is a brilliant, multitasking <strong>CEO</strong> who is sometimes stuck in meetings (GC pauses, CPU load). The MCU is the <strong>gatekeeper</strong> who never leaves their post: first awake when the car is unlocked, responding in microseconds, and deciding when to wake the CEO or send them to sleep. Safety functions must never depend on whether the CEO is free.</p>
+            </div>
+          </div>
+
+          <h3>Why not wire CAN straight into Android?</h3>
+          <ul>
+            <li><strong>Real time:</strong> Linux/Android cannot guarantee hard deadlines; an MCU services CAN signals on steady 10–100 ms cycles.</li>
+            <li><strong>Boot time:</strong> Android takes 10–30 s to boot; the rear-view camera and cluster must appear within ~2 s by regulation → handled by the MCU/RTOS.</li>
+            <li><strong>Power:</strong> the MCU is always powered from the battery, wakes the SoC on unlock and cuts SoC power for sleep.</li>
+            <li><strong>Security:</strong> a gateway filters frames, so a compromised Android cannot inject forged brake or steering commands.</li>
+          </ul>
+        </section>
+
+        <section class="doc-section" id="takeaways" data-title="Key takeaways">
+          <div class="sec-head"><h2><span class="sec-num">1.4</span>Key takeaways</h2></div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">AAOS = Android + the vehicle</h4><p class="small">Full Android plus the Car framework (CarService, Car API) and automotive HALs (VHAL, Audio Control, EVS).</p></div>
+            <div class="glass card"><h4 class="c-amber">Android Auto ≠ AAOS</h4><p class="small">Auto is projection from a phone; AAOS is the operating system running on the car.</p></div>
+            <div class="glass card"><h4 class="c-purple">Two computing worlds</h4><p class="small">SoC (Android, feature-rich) ⇄ MCU (real-time, vehicle bus). The VHAL is the bridge between them.</p></div>
+            <div class="glass card"><h4 class="c-green">Automotive specifics</h4><p class="small">Multiple displays and users, vehicle-state power management, driving UX restrictions, safety and security requirements.</p></div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/pages/foundations.js"></script>
+</body>
+</html>

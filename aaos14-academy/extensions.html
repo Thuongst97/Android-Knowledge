@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OEM Extensibility — AAOS 14 Academy</title>
+  <meta name="description" content="How OEMs extend Android Automotive OS 14: runtime resource overlays, CarService plug-in services (config_earlyStartupServices), OemCarService, custom system services and vendor AIDL services.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="extensions">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 06</span></nav>
+          <div class="eyebrow">Module 06 · Customization</div>
+          <h1>OEM Extensibility: System & Plug-in Services</h1>
+          <p class="lead">Every carmaker needs its own services, policies and look — but forking AOSP makes every Android upgrade painful. AAOS offers a ladder of extension mechanisms, from “change a value in an XML overlay” to “add a brand-new system service”. This module explains each rung, when to use it and exactly how to wire it up.</p>
+          <div class="page-meta"><span>⏱ 35 min read</span><span>🎯 Intermediate → Advanced</span><span>📂 packages/services/Car · frameworks/base · device/&lt;oem&gt;</span></div>
+        </header>
+
+        <section class="doc-section" id="extension-map" data-title="Extension points map">
+          <div class="sec-head"><h2><span class="sec-num">6.1</span>Extension points map</h2></div>
+          <p>The green pins mark where an OEM can plug in without (or with minimal) changes to AOSP source. The guiding principle: <strong>prefer configuration over code, and plug-ins over forks</strong>.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-ext"></div></div>
+
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>#</th><th>Mechanism</th><th>Ships in</th><th>Modifies AOSP code?</th><th>Upgrade cost</th><th>Typical use</th></tr></thead>
+              <tbody>
+                <tr><td>①</td><td><a href="#overlays">Runtime Resource Overlays (RRO)</a></td><td>Overlay APK in /product or /vendor</td><td class="yes">No</td><td class="yes">Low</td><td>Config values, zone/display mapping, enabling plug-ins, theming</td></tr>
+                <tr><td>②</td><td><a href="#plugin-services">CarService plug-in services</a> (<code>config_earlyStartupServices</code>)</td><td>Privileged app + RRO</td><td class="yes">No</td><td class="yes">Low</td><td>OEM background logic bound to boot / user lifecycle</td></tr>
+                <tr><td>③</td><td><a href="#oem-car-service">OemCarService</a> (Android 14)</td><td>Privileged app + RRO</td><td class="yes">No</td><td class="part">Low–medium (versioned API)</td><td>Audio focus, volume and ducking policy</td></tr>
+                <tr><td>④</td><td>Persistent privileged app services</td><td>/product/priv-app with <code>android:persistent</code></td><td class="yes">No</td><td class="yes">Low</td><td>Always-on OEM services exposing AIDL to other OEM apps</td></tr>
+                <tr><td>⑤</td><td><a href="#system-service">Custom system service in system_server</a></td><td>Framework fork (frameworks/base)</td><td class="no">Yes</td><td class="no">High</td><td>Platform-wide APIs needed early in boot by many components</td></tr>
+                <tr><td>⑥</td><td><a href="#vendor-service">Vendor AIDL service / VHAL vendor property</a></td><td>/vendor</td><td class="yes">No (vendor only)</td><td class="part">Low–medium (VINTF versioning)</td><td>New vehicle signals or new hardware</td></tr>
+                <tr><td>⑦</td><td>Car UI library customization (RRO / plugin)</td><td>Overlay or plugin APK</td><td class="yes">No</td><td class="yes">Low</td><td>Restyling toolbars, lists and dialogs across all car apps</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>Think of AOSP as a <strong>rented, fully furnished apartment</strong>. Overlays are repainting the walls and moving furniture (allowed, reversible). Plug-in services are bringing your own appliances and plugging them into the existing sockets. OemCarService is the landlord's official “smart thermostat slot” where you may install your own model. Adding a system service to system_server is knocking down a wall — possible, but you must rebuild it every time the landlord renovates (every Android release).</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="decision" data-title="Which mechanism should I use?">
+          <div class="sec-head"><h2><span class="sec-num">6.2</span>Which mechanism should I use?</h2></div>
+          <p>Pick the statement that best describes what you need:</p>
+          <div class="ext-pick" id="ext-pick"></div>
+          <div class="ext-answer" id="ext-answer" aria-live="polite"></div>
+        </section>
+
+        <section class="doc-section" id="overlays" data-title="Configuration via overlays (RRO)">
+          <div class="sec-head"><h2><span class="sec-num">6.3</span>① Configuration via overlays (RRO)</h2></div>
+          <p>A <strong>Runtime Resource Overlay</strong> is a resource-only APK that replaces resource values (<code>bool</code>, <code>integer</code>, <code>string</code>, <code>string-array</code>, colors, dimensions, drawables, layouts) of a <em>target</em> package at runtime — without touching the target's code. AAOS is designed around this: most CarService behavior, occupant zones, plug-in lists and SystemUI layout are read from overlayable resources.</p>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>An RRO is a <strong>sticky note on a printed manual</strong>. The manual (the AOSP APK) stays untouched; the reader (the resource system) sees your note on top of the original line. Remove the note and the original value is back.</p>
+            </div>
+          </div>
+
+          <h3>Important overlay targets in AAOS</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Target package</th><th>What you customize</th><th>Example resources</th></tr></thead>
+              <tbody>
+                <tr><td><code>com.android.car.updatable</code><br><span class="small muted">(CarService resources; <code>com.android.car</code> before Android 13)</span></td><td>Vehicle policy & plug-ins</td><td><code>config_occupant_zones</code>, <code>config_occupant_display_mapping</code>, <code>config_earlyStartupServices</code>, <code>config_oemCarService</code>, <code>config_allowed_optional_car_features</code>, <code>audioUseDynamicRouting</code></td></tr>
+                <tr><td><code>android</code> (framework-res)</td><td>Platform behavior</td><td><code>config_multiuserVisibleBackgroundUsers</code> (MUMD), <code>config_multiuserMaxRunningUsers</code></td></tr>
+                <tr><td><code>com.android.systemui</code> (CarSystemUI)</td><td>System bars, HVAC panel, notification center</td><td>Bar layouts, button configs, colors, dimensions</td></tr>
+                <tr><td><code>com.android.car.carlauncher</code></td><td>Home screen</td><td>Card layouts, app grid configuration</td></tr>
+                <tr><td>Apps using car-ui-lib</td><td>Consistent OEM look across apps</td><td>Toolbar, list item and dialog styling tokens</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Step by step: overlay CarService configuration</h3>
+          <ol class="steps-list">
+            <li><b>Create the overlay module</b>e.g. <code>device/oem/car/overlay/OemCarServiceConfigRRO/</code> with an <code>Android.bp</code>, an <code>AndroidManifest.xml</code> and a <code>res/</code> folder.</li>
+            <li><b>Declare the target</b>Point <code>&lt;overlay android:targetPackage&gt;</code> at the package that owns the resources. If the target declares <code>&lt;overlayable&gt;</code> groups (see its <code>res/values/overlayable.xml</code>), also set <code>android:targetName</code> to the matching group.</li>
+            <li><b>Override only what you need</b>Copy the resource <em>names</em> (not the whole file) into <code>res/values/config.xml</code> with your values.</li>
+            <li><b>Install it</b>Add the module to <code>PRODUCT_PACKAGES</code>. Static overlays (<code>isStatic="true"</code>) are enabled at boot and cannot be toggled by users.</li>
+            <li><b>Verify on the device</b><code>adb shell cmd overlay list</code> (look for <code>[x]</code> next to your package), <code>adb shell cmd overlay dump com.oem.car.carservice.rro</code>, and check the effective values in <code>adb shell dumpsys car_service</code>.</li>
+          </ol>
+          <script type="text/plain" data-code data-lang="conf" data-file="device/oem/car/overlay/OemCarServiceConfigRRO/Android.bp" data-label="Android.bp">
+runtime_resource_overlay {
+    name: "OemCarServiceConfigRRO",
+    product_specific: true,          // install to /product/overlay (or vendor: true)
+    resource_dirs: ["res"],
+    sdk_version: "current",
+}
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="OemCarServiceConfigRRO/AndroidManifest.xml" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.oem.car.carservice.rro">
+    <application android:hasCode="false" />
+    <!-- CarService resources live in the updatable CarService package on Android 13+ -->
+    <overlay
+        android:targetPackage="com.android.car.updatable"
+        android:isStatic="true"
+        android:priority="10" />
+</manifest>
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="OemCarServiceConfigRRO/res/values/config.xml" data-label="XML">
+<resources>
+    <!-- ② Plug-in services that CarService starts/binds for us -->
+    <string-array translatable="false" name="config_earlyStartupServices">
+        <item>com.oem.car.telemetry/.TelemetryService#bind=bind,user=system,trigger=asap</item>
+        <item>com.oem.car.assistant/.AssistantBridgeService#bind=bind,user=foreground,trigger=userUnlocked</item>
+    </string-array>
+
+    <!-- ③ Android 14: OEM policy service for audio focus / volume / ducking -->
+    <string translatable="false" name="config_oemCarService">com.oem.car.policy/.OemPolicyService</string>
+
+    <!-- Optional CarService features enabled on this product
+         (overriding the array replaces the AOSP default list, which enables all of them) -->
+    <string-array translatable="false" name="config_allowed_optional_car_features">
+        <item>cluster_service</item>
+        <item>car_evs_service</item>
+        <item>car_telemetry_service</item>
+    </string-array>
+
+    <!-- Use car_audio_configuration.xml zones instead of legacy routing -->
+    <bool name="audioUseDynamicRouting">true</bool>
+</resources>
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="device/oem/car/product.mk" data-label="Make">
+PRODUCT_PACKAGES += \
+    OemCarServiceConfigRRO \
+    OemTelemetry \
+    OemPolicyService
+          </script>
+          <div class="callout tip">
+            <div class="ci">💡</div>
+            <div><span class="ct">Build-time overlays still exist</span>
+              <p><code>PRODUCT_PACKAGE_OVERLAYS</code> / <code>DEVICE_PACKAGE_OVERLAYS</code> merge resources at <em>build</em> time instead of runtime. They work, but RRO modules are preferred: they are separate APKs, easy to inspect with <code>cmd overlay</code>, and do not require rebuilding the target. Note that resources in an <strong>updatable</strong> module (CarService) can only be customized through RROs.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="plugin-services" data-title="CarService plug-in services">
+          <div class="sec-head"><h2><span class="sec-num">6.4</span>② CarService plug-in services (<code>config_earlyStartupServices</code>)</h2></div>
+          <p>CarService contains a component called <strong><code>VendorServiceController</code></strong>. At startup it reads the <code>config_earlyStartupServices</code> array and, for each entry, starts or binds an OEM service <strong>as the right Android user, at the right moment</strong>, re-binding it if it crashes and following user switches. This is the official way to “plug” OEM services into the car's lifecycle without modifying CarService.</p>
+          <div class="formula" style="font-size:.88rem">
+            <span class="var">package</span>/<span class="var">.ServiceClass</span>#bind=<span class="c-green">bind|start|startForeground</span>,user=<span class="c-blue">system|foreground|all|visible|backgroundVisible</span>,trigger=<span class="c-amber">asap|userUnlocked|userPostUnlocked|resume</span>
+          </div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Option</th><th>Values</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>bind</code> <span class="small muted">(default <code>start</code>)</span></td><td><code>bind</code> · <code>start</code> · <code>startForeground</code></td><td><code>bind</code> uses <code>Context#bindService</code> — a bound service is restarted unless it keeps crashing; <code>start</code> / <code>startForeground</code> use <code>startService</code> / <code>startForegroundService</code>.</td></tr>
+                <tr><td><code>user</code> <span class="small muted">(default <code>all</code>)</span></td><td><code>all</code> · <code>system</code> · <code>foreground</code> · <code>visible</code> · <code>backgroundVisible</code></td><td><code>all</code> = the system user and every visible user; <code>system</code> = headless user 0 only; <code>foreground</code> = foreground users only (unbound/stopped when the user is no longer foreground); <code>visible</code> / <code>backgroundVisible</code> = visible users / visible background users (MUMD passengers).</td></tr>
+                <tr><td><code>trigger</code> <span class="small muted">(default <code>userUnlocked</code>)</span></td><td><code>asap</code> · <code>resume</code> · <code>userUnlocked</code> · <code>userPostUnlocked</code></td><td><code>asap</code> may run before the user is fully loaded (the service must be <code>directBootAware</code>); <code>resume</code> = after resuming from suspend-to-RAM or suspend-to-disk; <code>userUnlocked</code> = when the user unlocks; <code>userPostUnlocked</code> = later, for non-urgent work.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small muted">Source: the documentation comment for <code>config_earlyStartupServices</code> in <a href="https://android.googlesource.com/platform/packages/services/Car/+/refs/heads/android14-release/service/res/values/config.xml" target="_blank" rel="noopener">CarService <code>res/values/config.xml</code> (android14-release)</a>.</p>
+
+          <h3>Lifecycle (interactive)</h3>
+          <div id="plugin-seq"></div>
+
+          <h3>Writing the plug-in service</h3>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="com/oem/car/telemetry/TelemetryService.kt" data-label="Kotlin">
+class TelemetryService : Service() {
+
+    private var car: Car? = null
+    private val binder = object : ITelemetry.Stub() {          // optional API for other OEM apps
+        override fun lastSpeedKmh(): Float = latestSpeed * 3.6f
+    }
+    @Volatile private var latestSpeed = 0f
+
+    override fun onCreate() {
+        super.onCreate()
+        car = Car.createCar(this, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER) { c, ready ->
+            if (!ready) return@createCar                        // CarService restarting
+            val pm = c.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
+            pm.registerCallback(speedCallback, VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                CarPropertyManager.SENSOR_RATE_NORMAL)
+        }
+    }
+
+    // With bind=bind, VendorServiceController binds: onBind must return a non-null binder
+    override fun onBind(intent: Intent): IBinder = binder
+
+    override fun onDestroy() {
+        car?.disconnect()
+        super.onDestroy()
+    }
+
+    private val speedCallback = object : CarPropertyManager.CarPropertyEventCallback {
+        override fun onChangeEvent(v: CarPropertyValue<*>) { latestSpeed = v.value as Float }
+        override fun onErrorEvent(propId: Int, areaId: Int) {}
+    }
+}
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="OemTelemetry/AndroidManifest.xml" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.oem.car.telemetry">
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+
+    <application android:directBootAware="true">   <!-- needed for trigger=asap before unlock -->
+        <service
+            android:name=".TelemetryService"
+            android:exported="false"
+            android:directBootAware="true" />
+    </application>
+</manifest>
+          </script>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Requirements & pitfalls</span>
+              <ul>
+                <li>Ship the APK as a <strong>privileged system app</strong> (<code>/product/priv-app</code> or <code>/system_ext/priv-app</code>) with the permissions it needs allowlisted.</li>
+                <li><code>user=system</code> services run as user 0 — they must not touch per-user data and should be <code>directBootAware</code> if they start before unlock.</li>
+                <li>Keep <code>onCreate()</code> fast: CarService starts many services during boot; heavy work belongs on a background thread or in a Garage Mode job.</li>
+                <li>Don't rely on being restarted with <code>bind=start</code>; use <code>bind=bind</code> for anything that must stay alive.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="oem-car-service" data-title="OemCarService (Android 14)">
+          <div class="sec-head"><h2><span class="sec-num">6.5</span>③ OemCarService — policy plug-in (Android 14)</h2></div>
+          <p>Before Android 14, changing <em>how</em> AAOS makes certain decisions (for example the audio focus interaction matrix) meant forking <code>CarAudioService</code> inside CarService — painful now that CarService is an updatable module. Android 14 introduces <strong>OemCarService</strong>: CarService delegates selected policy decisions over a stable, versioned API to an OEM-supplied service.</p>
+          <div class="grid grid-2">
+            <div class="glass card">
+              <h4 class="c-purple">How it works</h4>
+              <ol class="small">
+                <li>The OEM ships a privileged app with a service extending <code>android.car.oem.OemCarService</code>.</li>
+                <li>An RRO sets <code>config_oemCarService</code> to that component.</li>
+                <li>At boot, <code>CarOemProxyService</code> binds it (the service must be protected by <code>android.car.permission.BIND_OEM_CAR_SERVICE</code>).</li>
+                <li>Car services ask it for decisions — e.g. <code>CarAudioService</code> asks the OEM audio-focus component to evaluate focus requests.</li>
+              </ol>
+              <p class="small"><strong>Fail-fast by design:</strong> if <code>config_oemCarService</code> is set but the service does not connect (<code>config_oemCarService_connection_timeout_ms</code>, 5 s default) or become ready in time, <strong>CarService crashes itself</strong>. Late answers to regular calls are ignored; a timeout on a critical call crashes both CarService and the OEM service.</p>
+            </div>
+            <div class="glass card">
+              <h4 class="c-green">Policy components (Android 14)</h4>
+              <ul class="small">
+                <li><code>OemCarAudioFocusService</code> — evaluate focus requests per audio zone.</li>
+                <li><code>OemCarAudioVolumeService</code> — choose which volume group a volume key adjusts.</li>
+                <li><code>OemCarAudioDuckingService</code> — decide which audio to duck.</li>
+              </ul>
+              <p class="small muted">Each is optional: if a component is not provided, the car audio service keeps its default behavior for that area.</p>
+            </div>
+          </div>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="com/oem/car/policy/OemPolicyService.kt (abridged, illustrative)" data-label="Kotlin">
+class OemPolicyService : OemCarService() {
+
+    private val focusPolicy = object : OemCarAudioFocusService {
+        override fun evaluateAudioFocusRequest(
+            request: OemCarAudioFocusEvaluationRequest
+        ): OemCarAudioFocusResult {
+            // Example OEM rule: navigation prompts never interrupt an active phone call
+            // → build and return a result granting, delaying or rejecting the request
+            return decide(request)
+        }
+        override fun init() {}
+        override fun release() {}
+        override fun onCarServiceReady() {}
+        override fun dump(writer: PrintWriter, args: Array<out String>) {}
+    }
+
+    override fun getOemAudioFocusService(): OemCarAudioFocusService = focusPolicy
+    override fun getSupportedCarVersion(): CarVersion = CarVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0
+    override fun onCarServiceReady() {}
+}
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="OemPolicyService/AndroidManifest.xml" data-label="XML">
+<service
+    android:name=".OemPolicyService"
+    android:exported="true"
+    android:permission="android.car.permission.BIND_OEM_CAR_SERVICE" />
+          </script>
+          <p class="small muted">Class and method names reflect the <code>android.car.oem</code> package in Android 14; the code is abridged — check the exact signatures in <code>packages/services/Car/car-lib/src/android/car/oem/</code> for your branch.</p>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>CarService is a <strong>referee</strong> who follows the official rulebook, but for a few specific calls (audio focus, volume, ducking) the league lets each team's <strong>appointed video assistant</strong> (OemCarService) make the decision. Calls the team didn't delegate stay with the rulebook. But once an assistant is appointed, the match cannot start without them — if they never show up, the referee stops the game (CarService restarts). Make your OemCarService fast and robust.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="system-service" data-title="Adding a system service">
+          <div class="sec-head"><h2><span class="sec-num">6.6</span>⑤ Adding a system service to system_server</h2></div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Last resort</span>
+              <p>This modifies <code>frameworks/base</code>. You will rebase it on every Android release, it can break CTS/GAS compliance if it leaks into public APIs, and it runs inside the most critical process on the device — a crash reboots the framework. Prefer ②, ③, ④ or ⑥ unless you truly need a platform-wide API available early in boot to many system components.</p>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><b>Define the AIDL interface</b>Place it in the framework (e.g. <code>frameworks/base/core/java/android/oem/IOemDiagnostics.aidl</code>) so both the service and the client manager can use it.</li>
+            <li><b>Implement the service</b>Extend <code>com.android.server.SystemService</code>, publish the binder in <code>onStart()</code> and enforce permissions on every call.</li>
+            <li><b>Start it from SystemServer</b>Add a <code>startService()</code> call in the appropriate phase of <code>SystemServer.java</code> (usually <code>startOtherServices()</code>).</li>
+            <li><b>Expose a manager</b>Write <code>OemDiagnosticsManager</code> and register it in <code>SystemServiceRegistry</code> so clients use <code>context.getSystemService(OemDiagnosticsManager::class.java)</code>. Keep it <code>@hide</code> or <code>@SystemApi</code> — never public SDK.</li>
+            <li><b>Label it in SELinux</b>Declare a service type, add it to <code>service_contexts</code> and allow only the domains that should find it.</li>
+            <li><b>Define the permission</b>Add a <code>signature|privileged</code> permission (e.g. in an OEM framework-resource package) and allowlist the OEM apps that hold it.</li>
+          </ol>
+          <script type="text/plain" data-code data-lang="java" data-file="frameworks/base/core/java/android/oem/IOemDiagnostics.aidl" data-label="AIDL">
+package android.oem;
+
+/** @hide */
+interface IOemDiagnostics {
+    String getEcuSoftwareVersion(int ecuId);
+    void requestSelfTest(int ecuId);
+}
+          </script>
+          <script type="text/plain" data-code data-lang="java" data-file="frameworks/base/services/core/java/com/android/server/oem/OemDiagnosticsService.java" data-label="Java">
+public final class OemDiagnosticsService extends SystemService {
+    public static final String SERVICE_NAME = "oem_diagnostics";
+    private static final String PERMISSION = "com.oem.permission.READ_DIAGNOSTICS";
+
+    private final IOemDiagnostics.Stub mBinder = new IOemDiagnostics.Stub() {
+        @Override
+        public String getEcuSoftwareVersion(int ecuId) {
+            getContext().enforceCallingPermission(PERMISSION, "getEcuSoftwareVersion");
+            return queryVersion(ecuId);
+        }
+
+        @Override
+        public void requestSelfTest(int ecuId) {
+            getContext().enforceCallingPermission(PERMISSION, "requestSelfTest");
+            scheduleSelfTest(ecuId);
+        }
+    };
+
+    public OemDiagnosticsService(Context context) {
+        super(context);
+    }
+
+    @Override
+    public void onStart() {
+        publishBinderService(SERVICE_NAME, mBinder);      // registers with servicemanager
+    }
+
+    @Override
+    public void onBootPhase(int phase) {
+        if (phase == PHASE_SYSTEM_SERVICES_READY) {
+            // safe to look up other system services here
+        }
+    }
+}
+          </script>
+          <script type="text/plain" data-code data-lang="java" data-file="SystemServer.java · SystemServiceRegistry.java (excerpts)" data-label="Java">
+// frameworks/base/services/java/com/android/server/SystemServer.java — startOtherServices()
+t.traceBegin("StartOemDiagnosticsService");
+mSystemServiceManager.startService(OemDiagnosticsService.class);
+t.traceEnd();
+
+// frameworks/base/core/java/android/app/SystemServiceRegistry.java — static initializer
+registerService(OemDiagnosticsManager.SERVICE_NAME, OemDiagnosticsManager.class,
+        new CachedServiceFetcher<OemDiagnosticsManager>() {
+            @Override
+            public OemDiagnosticsManager createService(ContextImpl ctx)
+                    throws ServiceNotFoundException {
+                IBinder b = ServiceManager.getServiceOrThrow(OemDiagnosticsManager.SERVICE_NAME);
+                return new OemDiagnosticsManager(ctx, IOemDiagnostics.Stub.asInterface(b));
+            }
+        });
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="system_ext sepolicy (illustrative)" data-label="SEPolicy">
+# service.te — a system_server-hosted Binder service
+type oem_diagnostics_service, system_api_service, system_server_service, service_manager_type;
+
+# service_contexts
+oem_diagnostics    u:object_r:oem_diagnostics_service:s0
+
+# Only privileged/platform apps may look it up (permission is still enforced in code)
+allow priv_app oem_diagnostics_service:service_manager find;
+allow platform_app oem_diagnostics_service:service_manager find;
+          </script>
+          <p class="small muted">Device-specific system policy goes in directories listed in <code>SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS</code> / <code>SYSTEM_EXT_PUBLIC_SEPOLICY_DIRS</code> rather than editing <code>system/sepolicy</code> directly.</p>
+
+          <div class="callout tip">
+            <div class="ci">✅</div>
+            <div><span class="ct">Lighter alternative: persistent privileged app service (④)</span>
+              <p>Most “OEM system services” don't need system_server. A privileged app in <code>/product/priv-app</code> with <code>android:persistent="true"</code> (honored only for system apps) is started at boot, restarted if it dies, runs in its own process, and can expose an AIDL interface to other OEM apps protected by a <code>signature</code> permission — all without touching the framework. Combine it with <code>config_earlyStartupServices</code> when you need per-user lifecycle handling.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="vendor-service" data-title="Vendor native services & HAL extensions">
+          <div class="sec-head"><h2><span class="sec-num">6.7</span>⑥ Vendor native services & HAL extensions</h2></div>
+          <p>Hardware-facing extensions live on <code>/vendor</code>, behind a stable interface — exactly like the VHAL. Choose the right path:</p>
+          <div class="grid grid-2">
+            <div class="glass card">
+              <h4 class="c-green">It is a vehicle signal → VHAL vendor property</h4>
+              <p class="small">Seat massage, ambient-light scene, drive-mode switch: add a <code>VENDOR</code>-group property to your VHAL. Apps reach it through <code>CarPropertyManager</code>, with CarService enforcing permissions. No new interface, no new service. See the <a href="code.html#checklist">checklist in Module 05</a>.</p>
+            </div>
+            <div class="glass card">
+              <h4 class="c-blue">It is not a vehicle property → vendor AIDL service</h4>
+              <p class="small">High-bandwidth or streaming hardware (e.g. a DSP effects engine, a proprietary sensor) deserves its own <code>@VintfStability</code> AIDL interface on /vendor, registered with servicemanager and declared in VINTF.</p>
+            </div>
+          </div>
+          <ol class="steps-list">
+            <li><b>Define a stable AIDL interface</b>An <code>aidl_interface</code> with <code>stability: "vintf"</code> and <code>vendor_available: true</code>; freeze versions with <code>m &lt;name&gt;-update-api</code> / <code>-freeze-api</code>.</li>
+            <li><b>Implement the service on /vendor</b>A <code>cc_binary</code> with <code>vendor: true</code>, an init <code>.rc</code> file and a VINTF manifest fragment, registering <code>vendor.oem.hardware.ambientlight.IAmbientLight/default</code>.</li>
+            <li><b>Let the framework depend on it</b>Add an entry to a device framework compatibility matrix (<code>DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE</code>) so system-side clients may use it, marked <code>optional</code> if devices may lack it.</li>
+            <li><b>SEPolicy</b>Label the service in vendor <code>service_contexts</code> and allow exactly the client domains (e.g. your privileged app) to <code>find</code> and call it.</li>
+            <li><b>Consume it</b>From a privileged app via the generated Java backend, or wrap it in a CarService plug-in service that applies policy and permissions before exposing it to other apps.</li>
+          </ol>
+          <script type="text/plain" data-code data-lang="aidl" data-file="vendor/oem/hardware/ambientlight/aidl/vendor/oem/hardware/ambientlight/IAmbientLight.aidl" data-label="AIDL">
+package vendor.oem.hardware.ambientlight;
+
+@VintfStability
+interface IAmbientLight {
+    void setZoneColor(int zone, int argb);
+    int getZoneColor(int zone);
+}
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="vendor/oem/hardware/ambientlight/aidl/Android.bp" data-label="Android.bp">
+aidl_interface {
+    name: "vendor.oem.hardware.ambientlight",
+    owner: "oem",
+    vendor_available: true,
+    stability: "vintf",
+    srcs: ["vendor/oem/hardware/ambientlight/*.aidl"],
+    backend: {
+        java: { sdk_version: "module_current" },   // for privileged app clients
+        ndk: { enabled: true },                    // for the C++ service
+    },
+}
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="device/oem/car/framework_compatibility_matrix.xml" data-label="XML">
+<compatibility-matrix version="1.0" type="framework">
+    <hal format="aidl" optional="true">
+        <name>vendor.oem.hardware.ambientlight</name>
+        <version>1</version>
+        <interface>
+            <name>IAmbientLight</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+</compatibility-matrix>
+          </script>
+        </section>
+
+        <section class="doc-section" id="golden-rules" data-title="Golden rules">
+          <div class="sec-head"><h2><span class="sec-num">6.8</span>Golden rules for OEM extensions</h2></div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-green">Config before code</h4><p class="small">If AOSP already reads a resource for it, overlay the resource. Search CarService's <code>config.xml</code> before writing a single line.</p></div>
+            <div class="glass card"><h4 class="c-blue">Plug in, don't fork</h4><p class="small">Early-startup services, OemCarService and privileged apps survive Android upgrades with little or no merge work.</p></div>
+            <div class="glass card"><h4 class="c-purple">Respect the Treble boundary</h4><p class="small">System ↔ vendor communication goes only through stable AIDL interfaces declared in VINTF — never through private libraries or files.</p></div>
+            <div class="glass card"><h4 class="c-amber">Least privilege, always</h4><p class="small">Protect every OEM service with a <code>signature|privileged</code> permission and a tight SEPolicy; vehicle control must remain gated by CarService.</p></div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/extensions.js"></script>
+</body>
+</html>

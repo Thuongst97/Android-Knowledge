@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Display & Occupant Zones — AAOS 14 Academy</title>
+  <meta name="description" content="IVI, instrument cluster, passenger and RSE displays in AAOS 14, and how CarOccupantZoneManager maps occupants to displays, input, audio and users.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="displays">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Displays</span></nav>
+          <div class="eyebrow">Module 03.3 · Core Subsystems</div>
+          <h1>Multi-Display & Occupant Zones</h1>
+          <p class="lead">A premium car can have 5–7 screens. The question is not just “what to draw on which screen”, but “who owns this screen, where does touch input go, and which speakers play its audio”. The answer is the <strong>Occupant Zone</strong>.</p>
+          <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Intermediate</span><span>📂 CarOccupantZoneService · CarInputService</span></div>
+        </header>
+
+        <section class="doc-section" id="display-types" data-title="Display types">
+          <div class="sec-head"><h2><span class="sec-num">3.3.1</span>Display types</h2></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Display</th><th>Display type</th><th>Rendered by</th><th>Characteristics</th></tr></thead>
+              <tbody>
+                <tr><td>Center Display (IVI)</td><td><code>DISPLAY_TYPE_MAIN</code></td><td>AAOS (CarLauncher, SystemUI)</td><td>The driver's main screen; touch + rotary; subject to UX Restrictions.</td></tr>
+                <tr><td>Instrument Cluster</td><td><code>DISPLAY_TYPE_INSTRUMENT_CLUSTER</code></td><td>Separate RTOS/VM; AAOS contributes a region</td><td>Safety requirements; AAOS uses <code>ClusterHomeService</code> to draw maps/media into an allotted area.</td></tr>
+                <tr><td>Head-Up Display</td><td><code>DISPLAY_TYPE_HUD</code></td><td>AAOS or a dedicated ECU</td><td>Minimal info: speed, next turn.</td></tr>
+                <tr><td>Passenger Display</td><td><code>DISPLAY_TYPE_MAIN</code> of the passenger zone</td><td>AAOS (separate user — MUMD)</td><td>The passenger can watch video while driving without distracting the driver.</td></tr>
+                <tr><td>Rear Seat Entertainment</td><td><code>DISPLAY_TYPE_MAIN</code> of a rear zone</td><td>AAOS (separate user)</td><td>Usually paired with its own headphone audio zone.</td></tr>
+                <tr><td>Auxiliary</td><td><code>DISPLAY_TYPE_AUXILIARY</code>, <code>DISPLAY_TYPE_INPUT</code></td><td>AAOS</td><td>Secondary control screens (e.g. a dedicated HVAC touch panel).</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="occupant-zones" data-title="Interactive occupant zones">
+          <div class="sec-head"><h2><span class="sec-num">3.3.2</span>Occupant Zone Manager (interactive)</h2></div>
+          <p><code>CarOccupantZoneManager</code> answers: for a given <em>occupant</em> (occupant zone), which displays, Android user, audio zone and input types belong to them? Click a seat or a screen (the small rectangles) in the diagram.</p>
+          <div class="cabin mt">
+            <div class="car-top glass" id="disp-cabin"></div>
+            <div class="glass card" id="oz-info" aria-live="polite"></div>
+          </div>
+
+          <h3>Occupant zone configuration (CarService RRO)</h3>
+          <script type="text/plain" data-code data-lang="xml" data-file="packages/services/Car/service/res/values/config.xml (overlay)" data-label="XML">
+<string-array translatable="false" name="config_occupant_zones">
+    <item>occupantZoneId=0,occupantType=DRIVER,seatRow=1,seatSide=driver</item>
+    <item>occupantZoneId=1,occupantType=FRONT_PASSENGER,seatRow=1,seatSide=oppositeDriver</item>
+    <item>occupantZoneId=2,occupantType=REAR_PASSENGER,seatRow=2,seatSide=left</item>
+    <item>occupantZoneId=3,occupantType=REAR_PASSENGER,seatRow=2,seatSide=right</item>
+</string-array>
+
+<!-- displayPort: physical display port (from SurfaceFlinger / DisplayAddress) -->
+<string-array translatable="false" name="config_occupant_display_mapping">
+    <item>displayPort=0,displayType=MAIN,occupantZoneId=0,inputTypes=TOUCH_SCREEN|ROTARY_NAVIGATION|DPAD_KEYS|NAVIGATE_KEYS</item>
+    <item>displayPort=1,displayType=INSTRUMENT_CLUSTER,occupantZoneId=0,inputTypes=DPAD_KEYS</item>
+    <item>displayPort=2,displayType=MAIN,occupantZoneId=1,inputTypes=TOUCH_SCREEN</item>
+    <item>displayPort=3,displayType=MAIN,occupantZoneId=2,inputTypes=TOUCH_SCREEN</item>
+    <item>displayPort=4,displayType=MAIN,occupantZoneId=3,inputTypes=TOUCH_SCREEN</item>
+</string-array>
+          </script>
+
+          <h3>Querying from code</h3>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="OccupantInfo.kt" data-label="Kotlin">
+val ozm = car.getCarManager(Car.CAR_OCCUPANT_ZONE_SERVICE) as CarOccupantZoneManager
+
+// Find the driver's zone
+val driverZone = ozm.allOccupantZones.first {
+    it.occupantType == CarOccupantZoneManager.OCCUPANT_TYPE_DRIVER
+}
+
+val mainDisplay = ozm.getDisplayForOccupant(driverZone, CarOccupantZoneManager.DISPLAY_TYPE_MAIN)
+val userId      = ozm.getUserForOccupant(driverZone)          // Android user of the zone
+val audioZoneId = ozm.getAudioZoneIdForOccupant(driverZone)   // link to CarAudioManager
+
+// React when the mapping changes (user switch, display hot-plug, audio zone change)
+ozm.registerOccupantZoneConfigChangeListener { changeFlags ->
+    if (changeFlags and CarOccupantZoneManager.ZONE_CONFIG_CHANGE_FLAG_USER != 0) {
+        refreshUserBoundUi()
+    }
+}
+          </script>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>An occupant zone is like an <strong>airline seat map</strong>: each seat (zone) has its own screen, headphone jack and call button, and is tied to a specific passenger (Android user). The entertainment system must know “who pressed the button” to play the movie on the right screen and the right headphones.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="input-routing" data-title="Input routing">
+          <div class="sec-head"><h2><span class="sec-num">3.3.3</span>Input routing per zone</h2></div>
+          <p>Input arrives from two sources that take different paths:</p>
+          <div class="grid grid-2">
+            <div class="glass card">
+              <h4 class="c-blue">Touch screens (kernel input devices)</h4>
+              <p class="small">Each touch controller is an input device. The framework associates it with a display through an <strong>input port association</strong> (e.g. <code>/vendor/etc/input-port-associations.xml</code> or the display/inputTypes configuration). Touching RSE-L only produces events for zone 2's display.</p>
+            </div>
+            <div class="glass card">
+              <h4 class="c-amber">Steering-wheel keys, rotary knobs (via VHAL)</h4>
+              <p class="small">These are not Linux devices but CAN signals. The VHAL emits <code>HW_KEY_INPUT</code>, <code>HW_ROTARY_INPUT</code>, <code>HW_CUSTOM_INPUT</code> properties with a <em>target display type</em>. <code>CarInputService</code> injects them into the matching display, or hands them to an app that registered via <code>CarInputManager.requestInputEventCapture()</code>.</p>
+            </div>
+          </div>
+          <div class="callout tip">
+            <div class="ci">✅</div>
+            <div><span class="ct">Example</span>
+              <p>The driver presses ▶ on the steering wheel → CAN frame → VHAL <code>HW_KEY_INPUT [ACTION_DOWN, KEYCODE_MEDIA_NEXT, targetDisplay=MAIN]</code> → CarInputService → the <strong>driver user's</strong> media session, not the one belonging to the child watching a movie in the back.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="mumd" data-title="Multi-User Multi-Display">
+          <div class="sec-head"><h2><span class="sec-num">3.3.4</span>Multi-User Multi-Display (MUMD) — Android 14</h2></div>
+          <p>Before Android 14 only <strong>one</strong> Android user ran in the foreground; passenger screens had to share the driver's user. Android 14 introduces <strong>visible background users</strong>: each passenger zone runs its own user, visible simultaneously on that zone's display.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Aspect</th><th>Before Android 14</th><th>Android 14 MUMD</th></tr></thead>
+              <tbody>
+                <tr><td>Concurrent users</td><td>1 foreground user</td><td>Driver (current user) + visible background users</td></tr>
+                <tr><td>Personal data</td><td>Shared account</td><td>Each passenger has their own account, apps and history</td></tr>
+                <tr><td>Starting a user</td><td>User switch (replaces everything)</td><td>Start a user on a specific display without affecting the driver</td></tr>
+                <tr><td>Audio / input</td><td>Shared</td><td>Follows the user's occupant zone</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">For app developers</span>
+              <p>Your app may run as <strong>several concurrent instances</strong> (one per user). Don't assume a single user; use <code>Context.getDisplay()</code> and the occupant zone instead of hard-coding <code>Display.DEFAULT_DISPLAY</code>. System-wide singletons must run as user 0 (the headless system user).</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/displays.js"></script>
+</body>
+</html>

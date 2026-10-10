@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Automotive Security & Sandboxing — AAOS 14 Academy</title>
+  <meta name="description" content="AAOS 14 security: car permissions, SEPolicy, VHAL access control, hardware isolation and gateways.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="security">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Security</span></nav>
+          <div class="eyebrow">Module 03.4 · Core Subsystems</div>
+          <h1>Automotive Security & Sandboxing</h1>
+          <p class="lead">On a phone, a malicious app can steal data. In a car, it could unlock the doors or distract the driver. That is why AAOS stacks several layers of defense from the app all the way down to the CAN bus.</p>
+          <div class="page-meta"><span>⏱ 15 min read</span><span>🎯 Intermediate</span><span>📂 car-lib/…/Car.java · system/sepolicy</span></div>
+        </header>
+
+        <section class="doc-section" id="defense-in-depth" data-title="Defense in depth">
+          <div class="sec-head"><h2><span class="sec-num">3.4.1</span>Defense in depth</h2></div>
+          <p>A request to “set 24 °C” must pass every layer below. An attacker would have to break <em>all</em> of them to send an unauthorized command to the vehicle.</p>
+          <div class="defense">
+            <div class="defense-layer glass" style="--dc:#38bdf8"><div class="dl-n">1</div><div><h4>App sandbox</h4><p>Each app runs with its own UID and SELinux domain (<code>untrusted_app</code> / <code>platform_app</code> / <code>priv_app</code>). No direct access to devices or HAL services.</p></div></div>
+            <div class="defense-layer glass" style="--dc:#a855f7"><div class="dl-n">2</div><div><h4>Car permissions in CarService</h4><p>Every Vehicle Property is bound to read and write permissions. <code>CarPropertyService</code> checks the calling UID before anything reaches the VHAL.</p></div></div>
+            <div class="defense-layer glass" style="--dc:#f472b6"><div class="dl-n">3</div><div><h4>SELinux & servicemanager</h4><p>Only domains in <code>hal_vehicle_client</code> (in practice CarService) may <em>find</em> and <em>call</em> the <code>IVehicle/default</code> service. Regular apps are blocked at the kernel level.</p></div></div>
+            <div class="defense-layer glass" style="--dc:#34d399"><div class="dl-n">4</div><div><h4>VHAL validation</h4><p>The VHAL checks that the property exists, the access mode, the areaId and the value range from <code>VehiclePropConfig</code>. Out-of-range values return <code>INVALID_ARG</code>.</p></div></div>
+            <div class="defense-layer glass" style="--dc:#fbbf24"><div class="dl-n">5</div><div><h4>MCU plausibility & hardware isolation</h4><p>The MCU accepts only a predefined command set from the SoC and applies plausibility checks (e.g. never open the trunk while driving). A hypervisor separates IVI from the cluster.</p></div></div>
+            <div class="defense-layer glass" style="--dc:#f87171"><div class="dl-n">6</div><div><h4>Gateway firewall & SecOC</h4><p>The gateway only lets the infotainment domain send whitelisted frames. Critical frames carry a MAC (AUTOSAR SecOC) so ECUs reject forged messages.</p></div></div>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>It's like <strong>airport security</strong>: ticket check at the entrance (permission), baggage screening (SELinux), passport control (VHAL validation), the boarding gate only opens for the right flight (MCU), and the cockpit door is locked from the inside (gateway). Getting past one checkpoint doesn't get you into the cockpit.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="permissions" data-title="Car permissions">
+          <div class="sec-head"><h2><span class="sec-num">3.4.2</span>Car permissions</h2></div>
+          <p>Automotive permissions use the <code>android.car.permission.</code> prefix and are exposed as constants in <code>android.car.Car</code> (e.g. <code>Car.PERMISSION_CONTROL_CAR_CLIMATE</code> = <code>"android.car.permission.CONTROL_CAR_CLIMATE"</code>). The protection level decides <em>who</em> can be granted each one:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Permission</th><th>Protection level</th><th>Example properties / APIs</th></tr></thead>
+              <tbody>
+                <tr><td><code>CAR_INFO</code></td><td><span class="badge green">normal</span></td><td>INFO_MAKE, INFO_MODEL, INFO_FUEL_TYPE</td></tr>
+                <tr><td><code>CAR_POWERTRAIN</code></td><td><span class="badge green">normal</span></td><td>GEAR_SELECTION, IGNITION_STATE</td></tr>
+                <tr><td><code>CAR_EXTERIOR_ENVIRONMENT</code></td><td><span class="badge green">normal</span></td><td>ENV_OUTSIDE_TEMPERATURE, NIGHT_MODE</td></tr>
+                <tr><td><code>CAR_SPEED</code></td><td><span class="badge amber">dangerous</span></td><td>PERF_VEHICLE_SPEED, PERF_VEHICLE_SPEED_DISPLAY</td></tr>
+                <tr><td><code>CAR_ENERGY</code></td><td><span class="badge amber">dangerous</span></td><td>FUEL_LEVEL, EV_BATTERY_LEVEL, RANGE_REMAINING</td></tr>
+                <tr><td><code>CONTROL_CAR_CLIMATE</code></td><td><span class="badge red">signature|privileged</span></td><td>HVAC_TEMPERATURE_SET, HVAC_FAN_SPEED, HVAC_POWER_ON</td></tr>
+                <tr><td><code>CONTROL_CAR_DOORS</code></td><td><span class="badge red">signature|privileged</span></td><td>DOOR_LOCK, DOOR_POS</td></tr>
+                <tr><td><code>CAR_IDENTIFICATION</code></td><td><span class="badge red">signature|privileged</span></td><td>INFO_VIN</td></tr>
+                <tr><td><code>CAR_POWER</code></td><td><span class="badge red">signature|privileged</span></td><td>CarPowerManager (power policy)</td></tr>
+                <tr><td><code>CAR_CONTROL_AUDIO_VOLUME</code></td><td><span class="badge red">signature|privileged</span></td><td>CarAudioManager.setGroupVolume</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">About <code>CAR_INTENT_FORWARD</code></span>
+              <p>This name is <strong>not</strong> in the public permission list of <code>android.car.Car</code> in AOSP 14. If you meet it in a project, it is most likely an OEM-defined permission (e.g. <code>com.oem.permission.CAR_INTENT_FORWARD</code>). For vendor properties, the VHAL can assign custom permissions through the <code>SUPPORT_CUSTOMIZE_VENDOR_PERMISSION</code> property and the <code>PERMISSION_VENDOR_*</code> family.</p>
+            </div>
+          </div>
+          <script type="text/plain" data-code data-lang="xml" data-file="/system/etc/permissions/privapp-permissions-com.oem.hvac.xml" data-label="XML">
+<!-- An HVAC app in /system/priv-app must be allowlisted for privileged permissions -->
+<permissions>
+    <privapp-permissions package="com.oem.hvac">
+        <permission name="android.car.permission.CONTROL_CAR_CLIMATE"/>
+    </privapp-permissions>
+</permissions>
+          </script>
+        </section>
+
+        <section class="doc-section" id="permission-sim" data-title="Permission check simulator">
+          <div class="sec-head"><h2><span class="sec-num">3.4.3</span>Permission check simulator</h2></div>
+          <p>Choose an app type and its permission setup, and see whether CarService allows or denies each operation.</p>
+          <div class="perm-check glass card">
+            <div>
+              <h4 style="margin-top:0">App type</h4>
+              <label><input type="radio" name="apptype" value="3p" checked> Third-party app (Play Store, <code>/data/app</code>)</label>
+              <label><input type="radio" name="apptype" value="priv"> Privileged system app (<code>/system/priv-app</code>)</label>
+              <label><input type="radio" name="apptype" value="plat"> App signed with the platform key</label>
+              <h4>Manifest & grants</h4>
+              <label><input type="checkbox" id="p-speed" checked> Declares <code>CAR_SPEED</code></label>
+              <label><input type="checkbox" id="p-speed-g"> User granted <code>CAR_SPEED</code> (runtime)</label>
+              <label><input type="checkbox" id="p-climate" checked> Declares <code>CONTROL_CAR_CLIMATE</code></label>
+              <label><input type="checkbox" id="p-allow"> Listed in the <code>privapp-permissions</code> allowlist</label>
+            </div>
+            <div>
+              <h4 style="margin-top:0">Result</h4>
+              <div class="perm-out" id="perm-out" aria-live="polite"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="sepolicy" data-title="SEPolicy & VHAL access">
+          <div class="sec-head"><h2><span class="sec-num">3.4.4</span>SEPolicy & VHAL access control</h2></div>
+          <p>AOSP defines the HAL attribute <code>hal_vehicle</code>, split into two roles: <code>hal_vehicle_server</code> (the VHAL process) and <code>hal_vehicle_client</code> (CarService — domain <code>carservice_app</code>). The <code>IVehicle/default</code> service is labeled <code>hal_vehicle_service</code>; only valid clients may <code>find</code> it in servicemanager.</p>
+          <script type="text/plain" data-code data-lang="conf" data-file="system/sepolicy (abridged, illustrative)" data-label="SEPolicy">
+# public/attributes — HAL attribute for the Vehicle HAL
+hal_attribute(vehicle);
+
+# public/hal_vehicle.te — client and server call each other over Binder (request + callback)
+binder_call(hal_vehicle_client, hal_vehicle_server)
+binder_call(hal_vehicle_server, hal_vehicle_client)
+hal_attribute_service(hal_vehicle, hal_vehicle_service)
+
+# private/carservice_app.te — CarService is the only client of the VHAL
+hal_client_domain(carservice_app, hal_vehicle)
+
+# service_contexts (vendor) — label for the AIDL service
+android.hardware.automotive.vehicle.IVehicle/default   u:object_r:hal_vehicle_service:s0
+
+# Result: untrusted_app is not a hal_vehicle_client, so servicemanager
+# refuses "find hal_vehicle_service" and an avc: denied is logged.
+          </script>
+          <div class="callout tip">
+            <div class="ci">🔍</div>
+            <div><span class="ct">Debugging</span>
+              <p>When your VHAL cannot open its CAN socket, check <code>adb logcat | grep avc</code>. Add the minimal rule to your vendor policy (e.g. <code>allow hal_vehicle_oem self:can_socket { create bind read write };</code>) and <strong>never</strong> run permissive on a production vehicle.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="isolation" data-title="Hardware isolation">
+          <div class="sec-head"><h2><span class="sec-num">3.4.5</span>Hardware isolation & compliance</h2></div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Hypervisor</h4><p class="small">IVI (AAOS) and the cluster run in separate VMs. Even if Android crashes or is compromised, the speedometer and warning lights keep working.</p></div>
+            <div class="glass card"><h4 class="c-purple">MCU as a controlled one-way gate</h4><p class="small">The SoC has no direct path to the chassis bus. The MCU forwards only permitted signals, with plausibility checks and rate limiting.</p></div>
+            <div class="glass card"><h4 class="c-green">Verified Boot & HSM</h4><p class="small">Android Verified Boot (AVB) authenticates every partition; keys and certificates live in an HSM/TEE. A/B OTA updates are signed.</p></div>
+            <div class="glass card"><h4 class="c-amber">Regulation</h4><p class="small"><strong>UN R155</strong> (cybersecurity management — CSMS), <strong>UN R156</strong> (software updates — SUMS), <strong>ISO/SAE 21434</strong> (automotive cybersecurity engineering). Mandatory for new vehicles in the EU and many other markets.</p></div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/pages/security.js"></script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AAOS 14 Academy — Android Automotive OS, Top to Bottom</title>
+  <meta name="description" content="Interactive documentation that explains Android Automotive OS 14 top-down for engineers new to automotive: 5-layer architecture, VHAL, CarService, power, audio, multi-display and security.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="home" class="landing">
+  <div id="site-header"></div>
+
+  <main>
+    <!-- ======================= HERO ======================= -->
+    <section class="hero">
+      <div class="hero-grid-bg"></div>
+      <div class="hero-inner">
+        <div>
+          <div class="eyebrow">Android Automotive OS 14 · AOSP</div>
+          <h1>Understand <span class="grad">Android Automotive OS</span> from the touchscreen down to the CAN bus.</h1>
+          <p class="lead">A top-down learning path for engineers stepping into the automotive Android ecosystem. Every complex mechanism comes with an interactive diagram, real AOSP code and an everyday analogy.</p>
+          <div class="hero-cta">
+            <a class="btn primary" href="foundations.html">Start learning →</a>
+            <a class="btn" href="users.html">👤 Explore user profiles</a>
+          </div>
+          <div class="hero-stats">
+            <div><b>5</b><span>architecture layers</span></div>
+            <div><b>11</b><span>in-depth pages</span></div>
+            <div><b>80+</b><span>official doc references</span></div>
+            <div><b>45+</b><span>glossary terms</span></div>
+          </div>
+        </div>
+        <div class="hero-stack" aria-label="The five AAOS layers">
+          <a class="hs-layer" style="color:#70cff8" href="architecture.html#explorer"><div><b>Applications</b><small>Car Launcher · HVAC · Cluster</small></div><span class="hs-n">L1</span></a>
+          <a class="hs-layer" style="color:#a78bfa" href="architecture.html#explorer"><div><b>Car API & Framework</b><small>CarPropertyManager · CarService</small></div><span class="hs-n">L2</span></a>
+          <a class="hs-layer" style="color:#f472b6" href="architecture.html#explorer"><div><b>System IPC / AIDL</b><small>IVehicle.aidl · Binder</small></div><span class="hs-n">L3</span></a>
+          <a class="hs-layer" style="color:#34d399" href="architecture.html#explorer"><div><b>Vehicle HAL</b><small>C++ · DefaultVehicleHal</small></div><span class="hs-n">L4</span></a>
+          <a class="hs-layer" style="color:#d4af37" href="architecture.html#explorer"><div><b>MCU & Vehicle Bus</b><small>CAN FD · LIN · Ethernet</small></div><span class="hs-n">L5</span></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= LEARNING PATH ======================= -->
+    <section class="l-section alt">
+      <div class="l-inner">
+        <div class="l-head">
+          <div class="eyebrow">Learning path</div>
+          <h2>Top-down: from “what” to “how”</h2>
+          <p class="muted">No automotive background required. Basic Android knowledge helps (Activities, Services; Binder is a bonus).</p>
+        </div>
+        <div class="path-steps">
+          <div class="path-step glass"><h4>Orient</h4><p>How is AAOS different from Android Auto and a phone? What does the hardware inside a car look like?</p></div>
+          <div class="path-step glass"><h4>Architecture</h4><p>Five layers from app to CAN bus, the Treble boundary and the Vehicle Property model.</p></div>
+          <div class="path-step glass"><h4>Subsystems</h4><p>Power & Garage Mode, multi-zone audio, multi-display and security — the automotive-specific building blocks.</p></div>
+          <div class="path-step glass"><h4>Hands-on</h4><p>Multi-user profiles synced across ECUs, annotated Kotlin/AIDL/C++ VHAL code, and how OEMs extend the platform.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= MODULES ======================= -->
+    <section class="l-section">
+      <div class="l-inner">
+        <div class="l-head">
+          <div class="eyebrow">Modules</div>
+          <h2>Eleven topics, one complete picture</h2>
+        </div>
+        <div class="grid grid-3" id="module-grid"></div>
+      </div>
+    </section>
+
+    <!-- ======================= FEATURES ======================= -->
+    <section class="l-section alt">
+      <div class="l-inner">
+        <div class="l-head">
+          <div class="eyebrow">How you learn</div>
+          <h2>Built for beginners, accurate enough for practitioners</h2>
+        </div>
+        <div class="grid grid-2">
+          <div class="feature glass card"><div class="fi">🎭</div><div><h4>Real-world analogies</h4><p>The VHAL as an interpreter at a multilingual conference; CarService as a hotel front desk checking room keys. Grasp the essence first, details second.</p></div></div>
+          <div class="feature glass card"><div class="fi">🧩</div><div><h4>Interactive diagrams</h4><p>Click each layer, power state or seat in the cabin to see the components, configuration and data flow behind it.</p></div></div>
+          <div class="feature glass card"><div class="fi">🔬</div><div><h4>Step-by-step sequence diagrams</h4><p>Follow a user switch, Garage Mode or a plug-in service lifecycle through CarService, the VHAL and the vehicle ECUs — with code at every hop.</p></div></div>
+          <div class="feature glass card"><div class="fi">📚</div><div><h4>Backed by official sources</h4><p>Every module ends with links to the matching pages on source.android.com and developer.android.com, so you can verify and go deeper.</p></div></div>
+          <div class="feature glass card"><div class="fi">💻</div><div><h4>Real code, annotated line by line</h4><p>Based on Android 14 AOSP APIs: CarPropertyManager, IVehicle.aidl, IVehicleHardware, Android.bp, VINTF and SEPolicy.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= MENTAL MODEL ======================= -->
+    <section class="l-section">
+      <div class="l-inner">
+        <div class="grid grid-2" style="align-items:center">
+          <div>
+            <div class="eyebrow">The 30-second mental model</div>
+            <h2>AAOS in one sentence</h2>
+            <p>AAOS is full Android running on the car's computer, plus <strong>CarService</strong> (the policy brain) and the <strong>VHAL</strong> (the hardware interpreter). Apps never talk to the CAN bus directly — every request passes through a chain of control:</p>
+            <div class="formula" style="text-align:left;font-size:.9rem">
+              App <span class="op">→</span> CarPropertyManager <span class="op">⇢</span> CarService <span class="op">⇢</span> IVehicle (AIDL) <span class="op">→</span> VHAL <span class="op">→</span> MCU / CAN <span class="op">→</span> ECU
+            </div>
+            <p class="muted small"><span class="c-purple">⇢</span> = Binder IPC (crosses a process boundary) · <span class="c-purple">→</span> = direct call / bus transmission</p>
+          </div>
+          <div class="callout analogy" style="margin:0">
+            <div class="ci">🏨</div>
+            <div><span class="ct">The big-picture analogy</span>
+              <p>Picture the car as a <strong>hotel</strong>. Apps are guests; CarService is the <strong>front desk</strong> checking permissions (“does your key card open this floor?”); the VHAL is the <strong>maintenance technician</strong> who speaks the “language” of the boiler, elevators and air conditioning; the ECUs are those machines.</p>
+              <p>Guests never walk into the plant room to adjust the boiler — they call the front desk.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="l-section" style="padding-top:0">
+      <div class="l-inner">
+        <div class="cta-band">
+          <h2>Ready to get in the driver's seat?</h2>
+          <p class="muted">Start with Module 01 or jump straight into the architecture diagrams.</p>
+          <div class="hero-cta" style="justify-content:center">
+            <a class="btn primary" href="foundations.html">Module 01: Foundations →</a>
+            <a class="btn" href="architecture.html#diagrams">🗺️ Architecture diagrams</a>
+            <a class="btn" href="glossary.html">📖 Browse the glossary</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      const { SITE, esc } = window.AAOS;
+      document.getElementById("module-grid").innerHTML = SITE.map((p) => `
+        <a class="module-card glass" href="${p.file}" style="--accent:${p.accent}">
+          <div class="mc-top"><div class="mc-icon">${p.icon}</div><span class="badge gray mono">${p.num}</span></div>
+          <h3>${esc(p.title)}</h3>
+          <p>${esc(p.desc)}</p>
+          <div class="mc-tags">${p.sections.slice(0, 3).map((s) => `<span class="chip">${esc(s[1])}</span>`).join("")}</div>
+          <span class="mc-go">Read module →</span>
+        </a>`).join("");
+    })();
+  </script>
+</body>
+</html>

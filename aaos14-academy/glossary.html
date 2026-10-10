@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glossary — AAOS 14 Academy</title>
+  <meta name="description" content="Glossary of Android Automotive OS, AOSP and automotive terms: VHAL, CarService, CAN, LIN, Occupant Zone, Garage Mode…">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="glossary">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Reference</span></nav>
+          <div class="eyebrow">Appendix A · Reference</div>
+          <h1>Glossary</h1>
+          <p class="lead">Quick reference for the terms used throughout this handbook.</p>
+        </header>
+
+        <section class="doc-section" id="glossary" data-title="Glossary of terms">
+          <div class="sec-head"><h2><span class="sec-num">A</span>Glossary of terms</h2></div>
+          <div class="gloss-tools">
+            <input id="g-search" type="search" placeholder="Search terms, e.g. CAN, focus, zone…" aria-label="Search terms">
+            <span class="small muted" id="g-count"></span>
+          </div>
+          <div class="gloss-tools" id="g-cats" role="group" aria-label="Filter by category"></div>
+          <div class="gloss-grid" id="g-grid"></div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script>
+    (function () {
+      const { $, $$, esc, norm, slug } = window.AAOS;
+      const CATS = { all: "All", platform: "Platform", framework: "Framework", hal: "HAL", ipc: "IPC", hardware: "Hardware", bus: "Vehicle bus", ux: "Display & UX", audio: "Audio", power: "Power", security: "Security" };
+      let cat = "all";
+      const grid = $("#g-grid"), input = $("#g-search"), count = $("#g-count");
+      const items = window.GLOSSARY.slice().sort((a, b) => a.term.localeCompare(b.term));
+      $("#g-cats").innerHTML = Object.entries(CATS).map(([k, v]) => `<button class="gloss-cat ${k === "all" ? "sel" : ""}" data-c="${k}">${v}</button>`).join("");
+      $("#g-cats").addEventListener("click", (e) => {
+        const b = e.target.closest("button"); if (!b) return;
+        cat = b.dataset.c;
+        $$(".gloss-cat").forEach((x) => x.classList.toggle("sel", x === b));
+        render();
+      });
+      function render() {
+        const q = norm(input.value.trim());
+        const list = items.filter((g) => (cat === "all" || g.cat === cat) && (!q || norm(g.term + " " + g.full + " " + g.desc).includes(q)));
+        count.textContent = `${list.length} / ${items.length} terms`;
+        grid.innerHTML = list.length ? list.map((g) => `<div class="gloss-item glass" id="g-${slug(g.term)}">
+            <h4>${esc(g.term)}</h4><div class="gx">${esc(g.full)} · <span class="badge gray">${CATS[g.cat]}</span></div><p>${esc(g.desc).replace(/`([^`]+)`/g, "<code>$1</code>")}</p></div>`).join("")
+          : `<p class="muted">No matching terms.</p>`;
+      }
+      input.addEventListener("input", render);
+      render();
+      if (location.hash.startsWith("#g-")) {
+        const el = document.getElementById(location.hash.slice(1));
+        if (el) { el.style.borderColor = "var(--blue)"; el.style.boxShadow = "0 0 0 3px var(--blue-dim)"; }
+      }
+    })();
+  </script>
+</body>
+</html>

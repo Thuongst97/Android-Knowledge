@@ -1,0 +1,55 @@
+# Kernel
+arm_64bit=1
+kernel=Image
+
+# Ramdisk
+gpio=21=ip,pu
+[gpio21=1]
+initramfs ramdisk.img followkernel
+[gpio21=0]
+initramfs ramdisk-recovery.img followkernel
+[all]
+
+# Audio
+dtparam=audio=on
+
+# Boot device
+dtoverlay=android-sdcard
+
+# Camera
+camera_auto_detect=1
+start_x=1
+
+# CPU
+arm_boost=1
+
+# Display
+disable_overscan=1
+
+# Display panel
+[gpio21=1]
+dtoverlay=vc4-kms-dsi-7inch
+[all]
+dtparam=i2c_vc=on
+ignore_lcd=0
+display_default_lcd=1
+dtoverlay=rpi-backlight
+
+# Graphics acceleration (Bắt buộc cma-512 cho Android 15)
+disable_fw_kms_setup=1
+[gpio21=1]
+dtoverlay=vc4-kms-v3d,cma-512
+[all]
+
+# I2C & SPI & UART
+dtparam=i2c_arm=on
+enable_uart=1
+dtparam=spi=on
+
+# USB
+dtoverlay=dwc2,dr_mode=peripheral
+[cm4]
+dtoverlay=dwc2,dr_mode=otg
+[all]
+
+include config_user.txt

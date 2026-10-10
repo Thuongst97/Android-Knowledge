@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multi-Zone Audio — AAOS 14 Academy</title>
+  <meta name="description" content="The AAOS 14 multi-zone audio system: audio zones, volume groups, audio focus, routing and car_audio_configuration.xml.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="audio">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 03</span><span>/</span><span>Audio</span></nav>
+          <div class="eyebrow">Module 03.2 · Core Subsystems</div>
+          <h1>Multi-Zone Audio</h1>
+          <p class="lead">In a car, the driver hears navigation prompts, the front passenger is on a call and the kids in the back watch a movie on headphones — all at once. AAOS solves this with audio zones, volume groups, per-zone audio focus and context-based routing.</p>
+          <div class="page-meta"><span>⏱ 20 min read</span><span>🎯 Intermediate</span><span>📂 service/src/com/android/car/audio</span></div>
+        </header>
+
+        <section class="doc-section" id="concepts" data-title="Core concepts">
+          <div class="sec-head"><h2><span class="sec-num">3.2.1</span>Core concepts</h2></div>
+          <p>On a phone, audio follows “stream types” (STREAM_MUSIC, STREAM_RING…) and almost everything comes out of the same speaker. AAOS replaces this with a hierarchy:</p>
+          <div class="formula" style="font-size:.9rem">
+            AudioAttributes.usage <span class="op">→</span> Audio Context <span class="op">→</span> Volume Group <span class="op">→</span> Output Device (bus) <span class="op">∈</span> Audio Zone
+          </div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Audio Context</h4><p class="small">A semantic category derived from <code>usage</code>: MUSIC, NAVIGATION, VOICE_COMMAND, CALL_RING, CALL, ALARM, NOTIFICATION, SYSTEM_SOUND, EMERGENCY, SAFETY, VEHICLE_STATUS, ANNOUNCEMENT. Apps never choose speakers — they only declare <em>what the sound is</em>.</p></div>
+            <div class="glass card"><h4 class="c-green">Output Device (bus)</h4><p class="small">A logical output with an address such as <code>bus0_media_out</code>. The Audio HAL delivers PCM to the DSP/amplifier; mixing and distribution to physical speakers usually happens in a DSP outside Android.</p></div>
+            <div class="glass card"><h4 class="c-amber">Volume Group</h4><p class="small">Contexts that share a single volume slider. E.g. the “Media” group contains MUSIC + ANNOUNCEMENT. Gain can be applied in Android (software) or sent to the DSP via the Audio Control HAL.</p></div>
+            <div class="glass card"><h4 class="c-purple">Audio Zone</h4><p class="small">A set of devices serving one area of the cabin, tied to an occupant zone. Each zone has its <strong>own volume groups</strong> and its <strong>own focus stack</strong>. Zone 0 is always the primary zone.</p></div>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>Think of a <strong>restaurant with several private dining rooms</strong> (audio zones). Each room has its own speakers and volume knob (volume groups). A coordinator (CarAudioService) decides which track plays in which room, and an urgent announcement (EMERGENCY) may interrupt. Diners (apps) just say “I'd like background music”; they never rewire the speakers themselves.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="zones" data-title="Interactive audio zones">
+          <div class="sec-head"><h2><span class="sec-num">3.2.2</span>Audio zones (interactive)</h2></div>
+          <p>Pick a seat to see the matching zone configuration: devices, volume groups and occupant zone. Drag the sliders to see that each zone's volume is independent.</p>
+          <div class="cabin mt">
+            <div class="car-top glass" id="audio-cabin"></div>
+            <div class="glass card" id="zone-info" aria-live="polite"></div>
+          </div>
+          <div class="callout note">
+            <div class="ci">ℹ️</div>
+            <div><span class="ct">Real deployments</span>
+              <p>This example uses four zones for four seats to illustrate the idea. Many production cars have only a <strong>primary zone</strong> for all cabin speakers, with secondary zones for the RSE headphone jacks/Bluetooth headsets. The number of zones and their seat mapping are entirely OEM-configured.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="focus" data-title="Audio focus policy">
+          <div class="sec-head"><h2><span class="sec-num">3.2.3</span>Audio focus policy</h2></div>
+          <p>When an app calls <code>AudioManager.requestAudioFocus()</code>, the zone's <code>CarAudioFocus</code> looks up an <strong>interaction matrix</strong> between the context currently holding focus and the context requesting it. There are three outcomes:</p>
+          <div class="grid grid-3">
+            <div class="glass card"><h4 class="fx-E">EXCLUSIVE</h4><p class="small">The requester gets focus; the holder loses it (transiently or permanently). Example: an incoming call while music plays.</p></div>
+            <div class="glass card"><h4 class="fx-C">CONCURRENT</h4><p class="small">Both play; the holder is usually <strong>ducked</strong> (attenuated). Example: a navigation prompt over music.</p></div>
+            <div class="glass card"><h4 class="fx-R">REJECT</h4><p class="small">The request is denied (<code>AUDIOFOCUS_REQUEST_FAILED</code>). Example: a music app requesting focus during a call.</p></div>
+          </div>
+
+          <h3>Focus simulator</h3>
+          <div class="glass card">
+            <div class="focus-sim">
+              <div><label class="small muted" for="fh">Current focus holder</label><select id="fh"></select></div>
+              <div><label class="small muted" for="fr">Incoming request</label><select id="fr"></select></div>
+            </div>
+            <div class="focus-result" id="focus-result" aria-live="polite"></div>
+          </div>
+
+          <h3>Interaction matrix (simplified)</h3>
+          <p class="small muted">Rows = context holding focus, columns = context requesting focus. Click a cell to simulate it. The matrix is illustrative and based on AOSP default behavior; OEMs can change it via <code>CarAudioFocus</code> or an OEM Audio Focus Service.</p>
+          <div class="table-wrap"><table class="t fmatrix" id="fmatrix"></table></div>
+        </section>
+
+        <section class="doc-section" id="routing" data-title="Routing & XML configuration">
+          <div class="sec-head"><h2><span class="sec-num">3.2.4</span>Routing & XML configuration</h2></div>
+          <p>The routing path when a media app plays music on a rear-seat screen:</p>
+          <ol>
+            <li>The app creates an <code>AudioTrack</code>/<code>MediaPlayer</code> with <code>AudioAttributes.USAGE_MEDIA</code>. The app runs as the Android user of that zone (MUMD) or its UID is mapped to the zone.</li>
+            <li><code>CarAudioService</code> has registered a <strong>dynamic audio policy</strong> with the AudioPolicyManager: each (zone, context) pair maps to a bus device.</li>
+            <li>AudioFlinger mixes and writes PCM to the Audio HAL device <code>bus200_audio_zone_2</code>.</li>
+            <li>The OEM's DSP/amplifier delivers the signal to the rear-left headphones. Ducking/fading can be signalled down through the <strong>IAudioControl</strong> HAL.</li>
+          </ol>
+          <div class="callout note">
+            <div class="ci">🆕</div>
+            <div><span class="ct">New in Android 14</span>
+              <p>The configuration file moves to <strong>version 3</strong>: each zone can have several <code>zoneConfig</code>s and switch between them at runtime (e.g. a rear zone switching between cabin speakers and Bluetooth headphones), “core audio routing” based on framework audio attributes is supported, and per-zone volume groups and muting are extended.</p>
+            </div>
+          </div>
+          <script type="text/plain" data-code data-lang="xml" data-file="/vendor/etc/car_audio_configuration.xml" data-label="XML">
+<carAudioConfiguration version="3">
+    <deviceConfigurations>
+        <deviceConfiguration name="useHalDuckingSignals" value="true"/>
+        <deviceConfiguration name="useCarVolumeGroupMuting" value="true"/>
+    </deviceConfigurations>
+    <zones>
+        <!-- Zone 0: cabin speakers, bound to the driver's occupant zone -->
+        <zone name="primary zone" isPrimary="true" occupantZoneId="0">
+            <zoneConfigs>
+                <zoneConfig name="primary zone config" isDefault="true">
+                    <volumeGroups>
+                        <group name="media">
+                            <device address="bus0_media_out">
+                                <context context="music"/>
+                                <context context="announcement"/>
+                            </device>
+                        </group>
+                        <group name="navigation">
+                            <device address="bus1_navigation_out">
+                                <context context="navigation"/>
+                            </device>
+                            <device address="bus2_voice_command_out">
+                                <context context="voice_command"/>
+                            </device>
+                        </group>
+                        <group name="call">
+                            <device address="bus4_call_out">
+                                <context context="call_ring"/>
+                                <context context="call"/>
+                            </device>
+                        </group>
+                        <group name="system">
+                            <device address="bus5_alarm_out">
+                                <context context="alarm"/>
+                                <context context="notification"/>
+                                <context context="system_sound"/>
+                                <context context="emergency"/>
+                                <context context="safety"/>
+                                <context context="vehicle_status"/>
+                            </device>
+                        </group>
+                    </volumeGroups>
+                </zoneConfig>
+            </zoneConfigs>
+        </zone>
+        <!-- Zone 2: rear-left headphones -->
+        <zone name="rear left zone" audioZoneId="2" occupantZoneId="2">
+            <zoneConfigs>
+                <zoneConfig name="rear left headphones" isDefault="true">
+                    <volumeGroups>
+                        <group name="rear left all">
+                            <device address="bus200_audio_zone_2">
+                                <context context="music"/>
+                                <context context="navigation"/>
+                                <context context="voice_command"/>
+                                <context context="call_ring"/>
+                                <context context="call"/>
+                                <context context="alarm"/>
+                                <context context="notification"/>
+                                <context context="system_sound"/>
+                                <context context="emergency"/>
+                                <context context="safety"/>
+                                <context context="vehicle_status"/>
+                                <context context="announcement"/>
+                            </device>
+                        </group>
+                    </volumeGroups>
+                </zoneConfig>
+            </zoneConfigs>
+        </zone>
+    </zones>
+</carAudioConfiguration>
+          </script>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Mandatory rules</span>
+              <p>Every zone must map <strong>all</strong> audio contexts; each bus device belongs to exactly one zone; bus addresses must match the Audio HAL's <code>audio_policy_configuration.xml</code>. Violations make CarAudioService fail at startup.</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/audio.js"></script>
+</body>
+</html>

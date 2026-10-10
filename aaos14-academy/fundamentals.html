@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Core Android Techniques — AAOS 14 Academy</title>
+  <meta name="description" content="The Android core techniques every AAOS engineer needs: Binder IPC, Handler, Looper and MessageQueue, threading rules, Zygote and the process model, app components, init and system properties.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="fundamentals">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 02.5</span></nav>
+          <div class="eyebrow">Module 02.5 · Foundations</div>
+          <h1>Core Android Techniques</h1>
+          <p class="lead">CarService, the VHAL client, every Car API callback and every plug-in service are built from the same few Android primitives: <strong>Binder</strong> for talking between processes, <strong>Handler / Looper / MessageQueue</strong> for scheduling work on a thread, and the <strong>process model</strong> that Zygote and init set up. Master these and the rest of AAOS stops looking like magic.</p>
+          <div class="page-meta"><span>⏱ 35 min read</span><span>🎯 Beginner → Intermediate</span><span>📂 frameworks/native/libs/binder · frameworks/base/core/java/android/os</span></div>
+        </header>
+
+        <section class="doc-section" id="anatomy" data-title="Anatomy of a process">
+          <div class="sec-head"><h2><span class="sec-num">2.5.1</span>Anatomy of an Android process</h2></div>
+          <p>Every app — and CarService itself — is a Linux process forked from Zygote, running the ART runtime, with a handful of important threads. Knowing <em>which thread runs your code</em> explains most AAOS bugs: frozen UIs, ANRs, races in callbacks and deadlocks across services.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-process"></div></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Thread</th><th>What runs there</th><th>Rule of thumb</th></tr></thead>
+              <tbody>
+                <tr><td>Main (UI) thread</td><td>Activity/Service lifecycle callbacks, UI drawing, input, <code>Handler(Looper.getMainLooper())</code> messages</td><td>Never block it — no disk, network or slow Binder calls. Input not handled within ~5 s → ANR.</td></tr>
+                <tr><td>Binder threads (<code>binder:&lt;pid&gt;_N</code>)</td><td>Incoming IPC: AIDL method implementations, callbacks from other processes</td><td>Code here runs concurrently — protect shared state, then hop to the main thread for UI.</td></tr>
+                <tr><td>RenderThread</td><td>GPU rendering of the UI</td><td>Managed by the framework; keep frames cheap on the main thread.</td></tr>
+                <tr><td>Background workers</td><td><code>HandlerThread</code>, <code>Executor</code>s, coroutines on <code>Dispatchers.IO/Default</code></td><td>The right place for I/O, parsing and long computations.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="binder" data-title="Binder IPC">
+          <div class="sec-head"><h2><span class="sec-num">2.5.2</span>Binder IPC</h2></div>
+          <p>Android processes are isolated by the kernel: they cannot read each other's memory. <strong>Binder</strong> is the kernel driver plus user-space libraries that let one process call a method on an object living in another process, as if it were local — while the kernel stamps every call with the caller's real identity.</p>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>Binder is a <strong>company switchboard with a tamper-proof caller ID</strong>. You dial an extension (a Binder handle), the operator (the kernel driver) connects you to whoever answers at that desk (a binder thread in the server process), passes your message across, and tells the receiver exactly who is calling — you can't fake the caller ID. The phone directory is <code>servicemanager</code>.</p>
+            </div>
+          </div>
+
+          <h3>Key concepts</h3>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Proxy & Stub</h4><p class="small">The client holds a <strong>proxy</strong> (<code>IFoo.Stub.Proxy</code> → <code>BpBinder</code>) that marshals arguments into a <code>Parcel</code>. The server extends the <strong>Stub</strong> (<code>BBinder</code>), whose <code>onTransact()</code> unmarshals the Parcel and calls your implementation. AIDL generates both.</p></div>
+            <div class="glass card"><h4 class="c-green">One copy, one thread</h4><p class="small">The driver copies the transaction data once into a buffer that is <code>mmap</code>'d into the receiving process, then wakes one of the server's binder threads. The calling thread blocks until the reply arrives (unless the call is <code>oneway</code>).</p></div>
+            <div class="glass card"><h4 class="c-purple">Identity & security</h4><p class="small"><code>Binder.getCallingUid()</code> / <code>getCallingPid()</code> are set by the kernel, which is why CarService can trust them for permission checks. Use <code>Binder.clearCallingIdentity()</code> / <code>restoreCallingIdentity()</code> when the service must act as itself.</p></div>
+            <div class="glass card"><h4 class="c-amber">Limits & failure</h4><p class="small">The transaction buffer is about <strong>1 MB per process</strong>, shared by all in-flight transactions → <code>TransactionTooLargeException</code>. If the remote process dies, calls throw <code>DeadObjectException</code>; register <code>linkToDeath()</code> to be notified.</p></div>
+          </div>
+
+          <h3>Three Binder domains</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Device node</th><th>Context manager</th><th>Used between</th><th>AAOS example</th></tr></thead>
+              <tbody>
+                <tr><td><code>/dev/binder</code></td><td><code>servicemanager</code></td><td>Framework ↔ apps, and AIDL HALs (system ↔ vendor)</td><td>App → CarService; CarService → <code>IVehicle/default</code> (AIDL VHAL)</td></tr>
+                <tr><td><code>/dev/hwbinder</code></td><td><code>hwservicemanager</code></td><td>Framework ↔ vendor via HIDL (legacy)</td><td>Older HIDL VHAL <code>@2.0</code></td></tr>
+                <tr><td><code>/dev/vndbinder</code></td><td><code>vndservicemanager</code></td><td>Vendor ↔ vendor processes only</td><td>VHAL ↔ an OEM vendor daemon</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>One Binder call, step by step (interactive)</h3>
+          <div id="binder-seq"></div>
+
+          <h3>Code: define, serve, call</h3>
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="aidl" aria-selected="true">AIDL interface</button>
+              <button data-tab="server">Server (Service)</button>
+              <button data-tab="client">Client (bind + death)</button>
+            </div>
+            <div class="tab-panel" data-panel="aidl">
+              <script type="text/plain" data-code data-lang="aidl" data-file="com/oem/telemetry/ITelemetry.aidl" data-label="AIDL">
+package com.oem.telemetry;
+
+import com.oem.telemetry.ISpeedListener;
+
+interface ITelemetry {
+    float lastSpeedKmh();                                // synchronous: caller blocks for the reply
+    void registerListener(ISpeedListener listener);      // a Binder object passed across processes
+}
+
+// ISpeedListener.aidl — oneway: the service never blocks on a slow client
+oneway interface ISpeedListener {
+    void onSpeed(float kmh);
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="server">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="TelemetryService.kt" data-label="Kotlin">
+class TelemetryService : Service() {
+
+    private val listeners = RemoteCallbackList<ISpeedListener>()   // handles client death for us
+    @Volatile private var speedKmh = 0f
+
+    private val binder = object : ITelemetry.Stub() {
+        // Runs on a BINDER THREAD, concurrently with other calls
+        override fun lastSpeedKmh(): Float {
+            enforceCallingPermission("com.oem.permission.READ_TELEMETRY", "lastSpeedKmh")
+            return speedKmh
+        }
+
+        override fun registerListener(listener: ISpeedListener) {
+            val uid = Binder.getCallingUid()            // kernel-provided, cannot be spoofed
+            Log.i(TAG, "listener registered by uid=$uid")
+            listeners.register(listener)
+        }
+    }
+
+    override fun onBind(intent: Intent): IBinder = binder
+
+    fun publish(kmh: Float) {
+        speedKmh = kmh
+        val n = listeners.beginBroadcast()
+        repeat(n) { i -> runCatching { listeners.getBroadcastItem(i).onSpeed(kmh) } }  // oneway calls
+        listeners.finishBroadcast()
+    }
+
+    private companion object { const val TAG = "Telemetry" }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="client">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="TelemetryClient.kt" data-label="Kotlin">
+class TelemetryClient(private val context: Context) {
+
+    private var service: ITelemetry? = null
+
+    private val deathRecipient = IBinder.DeathRecipient {
+        Log.w(TAG, "telemetry process died — rebinding")
+        service = null
+        bind()                                           // called on a binder thread
+    }
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {   // main thread
+            binder.linkToDeath(deathRecipient, 0)
+            service = ITelemetry.Stub.asInterface(binder)                         // returns a proxy
+            service?.registerListener(listener)
+        }
+        override fun onServiceDisconnected(name: ComponentName) { service = null }
+    }
+
+    // Our own Binder object: the service calls it back on OUR binder threads
+    private val listener = object : ISpeedListener.Stub() {
+        override fun onSpeed(kmh: Float) {
+            mainHandler.post { speedView.text = "%.0f km/h".format(kmh) }       // hop to the UI thread
+        }
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private lateinit var speedView: TextView
+
+    fun bind() {
+        val intent = Intent().setComponent(ComponentName("com.oem.car.telemetry", "com.oem.car.telemetry.TelemetryService"))
+        context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+    }
+
+    private companion object { const val TAG = "TelemetryClient" }
+}
+              </script>
+            </div>
+          </div>
+          <div class="callout tip">
+            <div class="ci">🔍</div>
+            <div><span class="ct">Inspecting Binder on a device</span>
+              <p><code>adb shell service list</code> (registered services), <code>adb shell dumpsys &lt;service&gt;</code>, <code>adb shell cat /dev/binderfs/binder_logs/state</code> (where binderfs is mounted), and Perfetto's <em>binder transactions</em> track to see who calls whom and how long each call takes.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="looper" data-title="Handler, Looper & MessageQueue">
+          <div class="sec-head"><h2><span class="sec-num">2.5.3</span>Handler, Looper & MessageQueue</h2></div>
+          <p>Binder moves work <em>between processes</em>. Handler/Looper moves work <em>between threads</em> — and serializes it on one thread. The main thread of every Android app is simply a thread running a <code>Looper</code>.</p>
+          <div class="grid grid-3">
+            <div class="glass card"><h4 class="c-blue">MessageQueue</h4><p class="small">A queue of <code>Message</code>s <strong>ordered by due time</strong> (<code>when</code>, in <code>SystemClock.uptimeMillis()</code>). When nothing is due, the thread sleeps in the kernel (epoll) — no busy waiting.</p></div>
+            <div class="glass card"><h4 class="c-green">Looper</h4><p class="small">Owns the queue and runs the loop on its thread: take the next due message, dispatch it to its target Handler, repeat. One Looper per thread: <code>Looper.prepare()</code> then <code>Looper.loop()</code>.</p></div>
+            <div class="glass card"><h4 class="c-purple">Handler</h4><p class="small">The producer/consumer API bound to one Looper. <code>post()</code>, <code>postDelayed()</code>, <code>sendMessage()</code> enqueue from <em>any</em> thread; <code>handleMessage()</code> / the Runnable executes on the Looper's thread.</p></div>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>A Looper is a <strong>single chef</strong> working through an <strong>order rail</strong> (the MessageQueue) sorted by when each dish is due. Waiters (Handlers on any thread) clip new orders onto the rail; the chef always cooks exactly one dish at a time, in due-time order. If one dish takes 10 minutes (a blocking call on the main thread), every other order — including the customer waving for attention (an input event) — waits. Wait too long and the customer walks out: that's an <strong>ANR</strong>.</p>
+            </div>
+          </div>
+
+          <h3>Looper simulator (interactive)</h3>
+          <p class="small muted">Simulated time runs at 2× speed. Post work, add delayed messages, send a touch event, then try the heavy task and watch the input event wait until an ANR is raised.</p>
+          <div class="glass card" id="looper-sim"></div>
+
+          <h3>What the loop actually does</h3>
+          <script type="text/plain" data-code data-lang="java" data-file="Looper.loop() — simplified from frameworks/base/core/java/android/os/Looper.java" data-label="Java">
+public static void loop() {
+    final Looper me = myLooper();                        // the Looper of the current thread
+    final MessageQueue queue = me.mQueue;
+    for (;;) {
+        Message msg = queue.next();                      // blocks (epoll) until a message is due
+        if (msg == null) return;                         // quit() was called
+        msg.target.dispatchMessage(msg);                 // Runnable callback or handleMessage()
+        msg.recycleUnchecked();                          // back to the Message pool
+    }
+}
+          </script>
+          <h3>A worker thread with its own Looper</h3>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="VehicleEventWorker.kt" data-label="Kotlin">
+// A dedicated thread for vehicle events: ordered, off the UI thread, no locks needed for its state
+val worker = HandlerThread("vehicle-events").apply { start() }
+val workerHandler = Handler(worker.looper)
+
+// Car API callbacks can be delivered straight onto that thread
+val car = Car.createCar(context, workerHandler)             // Car events dispatched on worker.looper
+
+workerHandler.post { parseAndCache() }                      // runs on "vehicle-events"
+workerHandler.sendMessage(Message.obtain(workerHandler, MSG_FLUSH))   // obtain() reuses pooled Messages
+workerHandler.postDelayed({ flushToDisk() }, 5_000)         // 5 s of UPTIME, see note below
+
+// When done:
+worker.quitSafely()                                         // finishes due messages, then stops
+          </script>
+          <div class="callout warn">
+            <div class="ci">🚗</div>
+            <div><span class="ct">Automotive gotcha: delays don't count deep sleep</span>
+              <p>Handler time is <code>SystemClock.uptimeMillis()</code>, which <strong>stops during deep sleep</strong>. A <code>postDelayed(…, 1 hour)</code> scheduled before the car enters Suspend-to-RAM fires one hour of <em>awake</em> time later — possibly days later. For wall-clock deadlines use <code>AlarmManager</code>, <code>JobScheduler</code> (Garage Mode) or handle <code>SUSPEND_EXIT</code>.</p>
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4>Sync barriers & async messages</h4><p class="small">The framework can insert a <em>sync barrier</em> so only messages marked asynchronous run — this is how <code>Choreographer</code> keeps frame rendering ahead of ordinary posts.</p></div>
+            <div class="glass card"><h4>IdleHandler</h4><p class="small"><code>Looper.myQueue().addIdleHandler { … }</code> runs work when the queue has nothing due — handy for low-priority warm-up after startup.</p></div>
+            <div class="glass card"><h4>Leaks</h4><p class="small">A delayed Message holds its Handler, which may hold an Activity. Remove pending work in <code>onDestroy()</code> (<code>removeCallbacksAndMessages(null)</code>) or use lifecycle-aware coroutines.</p></div>
+            <div class="glass card"><h4>Coroutines are built on this</h4><p class="small"><code>Dispatchers.Main</code> dispatches through a Handler on the main Looper; <code>withContext(Dispatchers.IO)</code> moves work to a thread pool and back.</p></div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="threading" data-title="Threading rules for AAOS code">
+          <div class="sec-head"><h2><span class="sec-num">2.5.4</span>Threading rules for AAOS code</h2></div>
+          <p>Binder and Looper meet constantly in car code: a callback arrives from CarService on a binder thread, and the result must be shown on the main thread. These rules prevent most production bugs:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Situation</th><th>Where your code runs</th><th>Do</th></tr></thead>
+              <tbody>
+                <tr><td>Implementing an AIDL interface (server)</td><td>Any binder thread, concurrently</td><td>Make it thread-safe; return fast; offload long work to a worker Looper/Executor.</td></tr>
+                <tr><td>Receiving a callback from another process</td><td>A binder thread of <em>your</em> process</td><td><code>Handler(mainLooper).post { … }</code> before touching UI.</td></tr>
+                <tr><td>Car API events (<code>CarPropertyManager</code> callbacks)</td><td>The Handler/Looper associated with your <code>Car</code> object (main thread by default)</td><td>Pass a worker <code>Handler</code> to <code>Car.createCar(…)</code> for high-rate signals so the UI thread stays free.</td></tr>
+                <tr><td>Calling a synchronous Binder method</td><td>The calling thread blocks until the reply</td><td>Don't do it on the main thread if the remote side can be slow (I/O, the vehicle bus, locks).</td></tr>
+                <tr><td>Calling a <code>oneway</code> method</td><td>Returns immediately</td><td>No return value, no exceptions from the remote; calls to the same Binder object are delivered in order.</td></tr>
+                <tr><td>Holding a lock</td><td>—</td><td>Never make an outgoing Binder call while holding a lock that incoming calls also need → cross-process deadlock.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="ci">🛠️</div>
+            <div><span class="ct">Catch it early</span>
+              <p>Enable <code>StrictMode</code> (disk/network on main thread) in debug builds, watch for <code>Binder</code> transactions on the main thread in Perfetto, and read ANR traces in <code>/data/anr/</code> — they show exactly what the main thread was waiting on.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="process" data-title="Init, Zygote & system_server">
+          <div class="sec-head"><h2><span class="sec-num">2.5.5</span>Process model: init, Zygote & system_server</h2></div>
+          <ol class="steps-list">
+            <li><b>Kernel → init (PID 1)</b><code>init</code> parses <code>*.rc</code> files, mounts partitions, sets system properties and starts native services (<code>servicemanager</code>, <code>hwservicemanager</code>, <code>vndservicemanager</code>, HALs such as the VHAL in <code>class early_hal</code>).</li>
+            <li><b>Zygote</b>Starts the ART runtime and preloads common classes and resources once. Every Java process is then created by <strong>forking</strong> Zygote — fast startup and shared memory pages.</li>
+            <li><b>system_server</b>The first process forked from Zygote. <code>SystemServer</code> starts ~100 system services in boot phases (ActivityManager, PackageManager, WindowManager…), including <code>CarServiceHelperService</code> on automotive builds.</li>
+            <li><b>CarService & persistent apps</b>ActivityManager starts persistent system apps — CarService (<code>com.android.car</code>) among them — which then binds to the VHAL and starts its plug-in services.</li>
+            <li><b>Apps</b>Each app is forked from Zygote on demand, given its own Linux UID (sandbox) and SELinux domain. Under memory pressure, <code>lmkd</code> kills processes by importance (cached → service → visible → foreground).</li>
+          </ol>
+          <script type="text/plain" data-code data-lang="conf" data-file="init .rc syntax (illustrative)" data-label="init.rc">
+# A native daemon started by init
+service vendor.oem-telemetryd /vendor/bin/oem-telemetryd
+    class main                      # started with the "main" class
+    user system
+    group system inet
+    oneshot                         # don't restart if it exits
+
+# React to a property change
+on property:persist.vendor.oem.telemetry.enabled=1
+    start vendor.oem-telemetryd
+          </script>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>Zygote is a <strong>pre-heated oven with dough already rolled out</strong>. Instead of baking each new pizza (app) from flour, Android takes the prepared base, adds the toppings (your app code) and serves it in a fraction of the time.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="components" data-title="App components & IPC patterns">
+          <div class="sec-head"><h2><span class="sec-num">2.5.6</span>App components & IPC patterns</h2></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Component</th><th>Purpose</th><th>IPC underneath</th><th>Where you meet it in AAOS</th></tr></thead>
+              <tbody>
+                <tr><td>Activity</td><td>A screen</td><td>Intents via ActivityManager (Binder)</td><td>Launcher, HVAC panel, Settings; must be <code>distractionOptimized</code> to run while driving</td></tr>
+                <tr><td>Service — started</td><td>Background work with no UI</td><td><code>startService()</code> / <code>startForegroundService()</code></td><td>CarService plug-ins with <code>bind=start</code></td></tr>
+                <tr><td>Service — bound</td><td>Expose an API to other components</td><td><code>bindService()</code> → <code>IBinder</code> → AIDL</td><td>CarService itself (<code>Car.createCar</code> binds to it), plug-ins with <code>bind=bind</code>, OemCarService</td></tr>
+                <tr><td>BroadcastReceiver</td><td>React to system-wide events</td><td>Intents delivered by ActivityManager</td><td>Boot completed, locale change; prefer CarService lifecycle APIs for user/power events</td></tr>
+                <tr><td>ContentProvider</td><td>Share structured data</td><td>Binder (cursor windows over shared memory)</td><td>Media, contacts/call log for the dialer, settings providers</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="properties" data-title="System properties">
+          <div class="sec-head"><h2><span class="sec-num">2.5.7</span>System properties</h2></div>
+          <p>System properties are global key–value strings managed by <code>init</code>, readable by any process and writable only by domains SELinux allows. They are used for build facts and simple configuration flags — not for runtime data exchange (use Binder for that).</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Prefix</th><th>Behavior</th><th>Example</th></tr></thead>
+              <tbody>
+                <tr><td><code>ro.*</code></td><td>Read-only after first set (build/boot facts)</td><td><code>ro.build.version.release</code>, <code>ro.product.model</code></td></tr>
+                <tr><td><code>persist.*</code></td><td>Survives reboot (stored on /data)</td><td><code>persist.vendor.oem.telemetry.enabled</code></td></tr>
+                <tr><td><code>vendor.*</code> / <code>ro.vendor.*</code></td><td>Owned by the vendor partition (Treble namespace)</td><td><code>ro.vendor.oem.can.interface</code></td></tr>
+                <tr><td>others</td><td>Runtime, reset at reboot</td><td><code>sys.boot_completed</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small"><code>adb shell getprop</code> lists them; <code>adb shell setprop</code> sets one (if SELinux allows). New properties need an entry in <code>property_contexts</code>; for typed, versioned access across partitions, define them as <em>sysprop</em> APIs.</p>
+        </section>
+
+        <section class="doc-section" id="pitfalls" data-title="Common pitfalls">
+          <div class="sec-head"><h2><span class="sec-num">2.5.8</span>Common pitfalls (and how AAOS amplifies them)</h2></div>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-red">Blocking Binder call on the main thread</h4><p class="small">The remote side may be waiting on the vehicle bus or a slow ECU — your UI freezes. Use async APIs or a worker thread.</p></div>
+            <div class="glass card"><h4 class="c-red">Forgetting CarService can restart</h4><p class="small">CarService is updatable and may crash/restart: handle <code>ready = false</code> in <code>Car.createCar</code> listeners and re-acquire managers.</p></div>
+            <div class="glass card"><h4 class="c-amber">Huge Parcels</h4><p class="small">Large lists or bitmaps over Binder hit the ~1 MB limit; use shared memory (<code>SharedMemory</code>, file descriptors) as the VHAL does with LargeParcelable.</p></div>
+            <div class="glass card"><h4 class="c-amber">Uptime-based timers across sleep</h4><p class="small"><code>postDelayed</code> and <code>SystemClock.uptimeMillis()</code> pause in Suspend-to-RAM; use wall-clock or elapsed-realtime APIs for real deadlines.</p></div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/fundamentals.js"></script>
+</body>
+</html>

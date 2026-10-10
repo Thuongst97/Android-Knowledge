@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Practical Code Examples — AAOS 14 Academy</title>
+  <meta name="description" content="Line-by-line annotated examples: Kotlin CarPropertyManager, IVehicle.aidl, a C++ VHAL IVehicleHardware implementation, Android.bp, VINTF and SEPolicy.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="code">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner" style="max-width:1200px">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 05</span></nav>
+          <div class="eyebrow">Module 05 · Hands-on</div>
+          <h1>Practical Code Examples</h1>
+          <p class="lead">Three views of the same feature — reading vehicle speed and setting the HVAC temperature: from a Kotlin app, through the AIDL contract, down to a C++ VHAL implementation in the AOSP source tree. Click any numbered line to read its explanation.</p>
+          <div class="page-meta"><span>⏱ 30 min</span><span>🎯 Intermediate → Advanced</span><span>📦 android-14.0.0 · VHAL AIDL V2</span></div>
+        </header>
+
+        <section class="doc-section" id="overview" data-title="Overview">
+          <div class="sec-head"><h2><span class="sec-num">5.1</span>Overview</h2></div>
+          <div class="grid grid-3">
+            <div class="glass card"><h4 class="c-blue">① App (Kotlin)</h4><p class="small">Connect to <code>Car</code>, subscribe to <code>PERF_VEHICLE_SPEED</code>, write <code>HVAC_TEMPERATURE_SET</code> with config checks. The HVAC part requires a privileged app.</p></div>
+            <div class="glass card"><h4 style="color:#f472b6">② Contract (AIDL)</h4><p class="small"><code>IVehicle</code>, <code>IVehicleCallback</code> and the key parcelables. You <strong>don't edit</strong> these files — read them to understand the contract.</p></div>
+            <div class="glass card"><h4 class="c-green">③ VHAL (C++)</h4><p class="small">An <code>OemVehicleHardware</code> class implementing <code>IVehicleHardware</code>, wired to CAN via SocketCAN; plus build, VINTF and SEPolicy files.</p></div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="explorer" data-title="Annotated code explorer">
+          <div class="sec-head"><h2><span class="sec-num">5.2</span>Annotated code explorer</h2></div>
+          <div class="tabs" data-tabs id="code-tabs">
+            <div class="tab-list" role="tablist">
+              <button data-tab="kotlin" aria-selected="true">Kotlin · CarPropertyManager</button>
+              <button data-tab="manifest">AndroidManifest.xml</button>
+              <button data-tab="aidl">AIDL · IVehicle</button>
+              <button data-tab="cpp-h">C++ · Header</button>
+              <button data-tab="cpp">C++ · VHAL impl</button>
+              <button data-tab="build">Build · VINTF · SEPolicy</button>
+            </div>
+            <div class="tab-panel" data-panel="kotlin"><div id="ex-kotlin"></div></div>
+            <div class="tab-panel" data-panel="manifest"><div id="ex-manifest"></div></div>
+            <div class="tab-panel" data-panel="aidl"><div id="ex-aidl"></div></div>
+            <div class="tab-panel" data-panel="cpp-h"><div id="ex-cpp-h"></div></div>
+            <div class="tab-panel" data-panel="cpp"><div id="ex-cpp"></div></div>
+            <div class="tab-panel" data-panel="build"><div id="ex-build"></div></div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="checklist" data-title="Checklist: adding a property">
+          <div class="sec-head"><h2><span class="sec-num">5.3</span>Checklist: adding a new OEM property</h2></div>
+          <p>Say you need a “seat massage mode” that is not in the standard property list:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>#</th><th>Task</th><th>Where</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>Check the standard properties first (<code>SEAT_*</code>) — prefer standard properties so third-party apps can use them.</td><td><code>hardware/interfaces/automotive/vehicle/aidl_property</code></td></tr>
+                <tr><td>2</td><td>Define a vendor ID: <code>0x0101 | VehiclePropertyGroup::VENDOR | VehicleArea::SEAT | VehiclePropertyType::INT32</code>.</td><td>OEM header</td></tr>
+                <tr><td>3</td><td>Add a <code>VehiclePropConfig</code> (access, changeMode, areaConfigs) to <code>getAllPropertyConfigs()</code>.</td><td><code>OemVehicleHardware.cpp</code></td></tr>
+                <tr><td>4</td><td>Add CAN encode/decode branches in <code>setValues</code> and the RX thread.</td><td><code>OemVehicleHardware.cpp</code></td></tr>
+                <tr><td>5</td><td>Assign read/write permissions to the vendor property (by default <code>android.car.permission.CAR_VENDOR_EXTENSION</code>, or customize via <code>SUPPORT_CUSTOMIZE_VENDOR_PERMISSION</code>).</td><td>VHAL config</td></tr>
+                <tr><td>6</td><td>Access it from a system app via <code>CarPropertyManager</code> using the numeric ID.</td><td>OEM app</td></tr>
+                <tr><td>7</td><td>Write hardware unit tests (gtest) and run the relevant VTS/CTS suites.</td><td><code>test/</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="ci">🧪</div>
+            <div><span class="ct">Quick try on the emulator</span>
+              <p>The AAOS emulator uses <code>FakeVehicleHardware</code>. You can read/write properties with the VHAL's dumpsys commands:</p>
+              <p><code>adb shell dumpsys android.hardware.automotive.vehicle.IVehicle/default --set 0x15600503 -a 1 -f 24.0</code><br>
+              <code>adb shell dumpsys android.hardware.automotive.vehicle.IVehicle/default --get 0x15600503 -a 1</code><br>
+              or through CarService: <code>adb shell cmd car_service get-property-value 0x15600503 1</code></p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+<!-- ================================ SOURCES ================================ -->
+<script type="text/plain" id="src-kotlin">
+package com.oem.hvac
+
+import android.car.Car                                                  «1»
+import android.car.VehicleAreaSeat
+import android.car.VehiclePropertyIds
+import android.car.hardware.CarPropertyValue
+import android.car.hardware.property.CarPropertyManager
+import android.car.hardware.property.CarPropertyManager.CarPropertyEventCallback
+import android.content.Context
+import android.util.Log
+
+class VehicleDataController(private val context: Context) {
+
+    private var car: Car? = null
+    private var propertyManager: CarPropertyManager? = null
+
+    fun connect() {
+        car = Car.createCar(                                            «2»
+            context, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER
+        ) { connectedCar, ready ->
+            if (!ready) {                                               «3»
+                propertyManager = null
+                return@createCar
+            }
+            propertyManager =
+                connectedCar.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager  «4»
+            subscribeSpeed()
+        }
+    }
+
+    // ------------------------------------------------------- Read speed
+    private val speedCallback = object : CarPropertyEventCallback {    «5»
+        override fun onChangeEvent(value: CarPropertyValue<*>) {
+            if (value.status != CarPropertyValue.STATUS_AVAILABLE) return  «6»
+            val speedKmh = (value.value as Float) * 3.6f               «7»
+            Log.d(TAG, "speed=%.1f km/h ts=%d".format(speedKmh, value.timestamp))
+        }
+
+        override fun onErrorEvent(propertyId: Int, areaId: Int) {
+            Log.w(TAG, "Property error 0x" + Integer.toHexString(propertyId))
+        }
+    }
+
+    private fun subscribeSpeed() {
+        propertyManager?.registerCallback(                              «8»
+            speedCallback,
+            VehiclePropertyIds.PERF_VEHICLE_SPEED,
+            CarPropertyManager.SENSOR_RATE_NORMAL
+        )
+    }
+
+    // ---------------------------------------------- Set HVAC temperature
+    fun setDriverTemperature(celsius: Float) {
+        val pm = propertyManager ?: return
+        val propId = VehiclePropertyIds.HVAC_TEMPERATURE_SET
+        val config = pm.getCarPropertyConfig(propId) ?: return          «9»
+
+        val areaId = config.areaIds.firstOrNull {                       «10»
+            it and VehicleAreaSeat.SEAT_ROW_1_LEFT != 0
+        } ?: return
+
+        val areaConfig = config.getAreaIdConfig(areaId)                 «11»
+        val min = areaConfig.minValue as? Float ?: 16f
+        val max = areaConfig.maxValue as? Float ?: 28f
+
+        if (!pm.isPropertyAvailable(propId, areaId)) return             «12»
+        pm.setFloatProperty(propId, areaId, celsius.coerceIn(min, max)) «13»
+    }
+
+    fun disconnect() {
+        propertyManager?.unregisterCallback(speedCallback)              «14»
+        car?.disconnect()
+        car = null
+    }
+
+    private companion object {
+        const val TAG = "VehicleData"
+    }
+}
+</script>
+
+<script type="text/plain" id="src-manifest">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.oem.hvac">
+
+    <!-- Installable only on automotive devices -->
+    <uses-feature android:name="android.hardware.type.automotive"      «1»
+        android:required="true" />
+
+    <!-- dangerous: the user must grant it at runtime -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" /> «2»
+
+    <!-- signature|privileged: allowlisted system apps only -->
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_CLIMATE" />  «3»
+
+    <application
+        android:label="@string/app_name"
+        android:theme="@style/Theme.CarUi">                             «4»
+
+        <activity
+            android:name=".HvacActivity"
+            android:exported="true"
+            android:resizeableActivity="true">                          «5»
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />                                 «6»
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+</script>
+
+<script type="text/plain" id="src-aidl">
+// ===== IVehicle.aidl =====
+package android.hardware.automotive.vehicle;
+
+import android.hardware.automotive.vehicle.GetValueRequests;
+import android.hardware.automotive.vehicle.IVehicleCallback;
+import android.hardware.automotive.vehicle.SetValueRequests;
+import android.hardware.automotive.vehicle.SubscribeOptions;
+import android.hardware.automotive.vehicle.VehiclePropConfigs;
+
+@VintfStability                                                         «1»
+interface IVehicle {
+    const long INVALID_MEMORY_ID = 0;
+    const int MAX_SHARED_MEMORY_FILES_PER_CLIENT = 3;
+
+    VehiclePropConfigs getAllPropConfigs();                            «2»
+    VehiclePropConfigs getPropConfigs(in int[] props);
+
+    void getValues(IVehicleCallback callback, in GetValueRequests requests);  «3»
+    void setValues(IVehicleCallback callback, in SetValueRequests requests);  «4»
+
+    void subscribe(in IVehicleCallback callback,                        «5»
+            in SubscribeOptions[] options, int maxSharedMemoryFileCount);
+    void unsubscribe(in IVehicleCallback callback, in int[] propIds);
+
+    void returnSharedMemory(in IVehicleCallback callback, long sharedMemoryId);  «6»
+}
+
+// ===== IVehicleCallback.aidl =====
+@VintfStability
+oneway interface IVehicleCallback {                                     «7»
+    void onGetValues(in GetValueResults responses);
+    void onSetValues(in SetValueResults responses);
+    void onPropertyEvent(in VehiclePropValues propValues, int sharedMemoryFileCount);  «8»
+    void onPropertySetError(in VehiclePropErrors errors);
+}
+
+// ===== Key parcelables =====
+@VintfStability
+parcelable SetValueRequest {
+    long requestId;                                                     «9»
+    VehiclePropValue value;
+}
+
+@VintfStability
+parcelable SetValueRequests {
+    SetValueRequest[] payloads;
+    @nullable ParcelFileDescriptor sharedMemoryFd;                      «10»
+}
+
+@VintfStability
+parcelable VehiclePropValue {
+    long timestamp;                                                     «11»
+    int areaId;
+    int prop;
+    VehiclePropertyStatus status = VehiclePropertyStatus.AVAILABLE;
+    RawPropValues value;
+}
+
+@VintfStability
+parcelable RawPropValues {                                              «12»
+    int[] int32Values = {};
+    float[] floatValues;
+    long[] int64Values;
+    byte[] byteValues;
+    @utf8InCpp String stringValue;
+}
+</script>
+
+<script type="text/plain" id="src-cpp-h">
+// vendor/oem/hardware/vehicle/include/OemVehicleHardware.h
+#pragma once
+
+#include <IVehicleHardware.h>                                           «1»
+#include <VehicleHalTypes.h>
+#include <VehicleUtils.h>
+
+#include <android-base/thread_annotations.h>
+#include <linux/can.h>
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
+
+namespace android::hardware::automotive::vehicle::oem {
+
+namespace aidlvhal = ::aidl::android::hardware::automotive::vehicle;
+
+// CAN mapping (hypothetical — in practice generated from the OEM's DBC file)
+constexpr canid_t kCanIdHvacCmd    = 0x3A2;                             «2»
+constexpr canid_t kCanIdHvacStatus = 0x3A3;
+constexpr canid_t kCanIdSpeed      = 0x1F0;
+constexpr float   kTempFactor      = 0.5f;   // °C per bit
+
+class OemVehicleHardware final : public IVehicleHardware {              «3»
+  public:
+    explicit OemVehicleHardware(std::string canInterface);
+    ~OemVehicleHardware() override;
+
+    std::vector<aidlvhal::VehiclePropConfig> getAllPropertyConfigs() const override;  «4»
+
+    aidlvhal::StatusCode setValues(
+            std::shared_ptr<const SetValuesCallback> callback,
+            const std::vector<aidlvhal::SetValueRequest>& requests) override;
+
+    aidlvhal::StatusCode getValues(
+            std::shared_ptr<const GetValuesCallback> callback,
+            const std::vector<aidlvhal::GetValueRequest>& requests) const override;
+
+    DumpResult dump(const std::vector<std::string>& options) override;
+    aidlvhal::StatusCode checkHealth() override;
+
+    void registerOnPropertyChangeEvent(                                 «5»
+            std::unique_ptr<const PropertyChangeCallback> callback) override;
+    void registerOnPropertySetErrorEvent(
+            std::unique_ptr<const PropertySetErrorCallback> callback) override;
+
+    aidlvhal::StatusCode updateSampleRate(int32_t propId, int32_t areaId,
+                                          float sampleRate) override;
+
+  private:
+    aidlvhal::StatusCode handleSet(const aidlvhal::VehiclePropValue& value);
+    bool writeFrame(const can_frame& frame);
+    void rxLoop();                                                      «6»
+    void onFrame(const can_frame& frame);
+
+    int mCanSocket = -1;
+    std::atomic<bool> mRunning{true};
+    std::thread mRxThread;
+    std::atomic<uint8_t> mCounter{0};
+
+    mutable std::mutex mLock;
+    std::unordered_map<int64_t, aidlvhal::VehiclePropValue> mCache GUARDED_BY(mLock);  «7»
+    std::unique_ptr<const PropertyChangeCallback> mOnPropertyChange;
+    std::unique_ptr<const PropertySetErrorCallback> mOnSetError;
+};
+
+}  // namespace android::hardware::automotive::vehicle::oem
+</script>
+
+<script type="text/plain" id="src-cpp">
+// vendor/oem/hardware/vehicle/src/OemVehicleHardware.cpp
+#include "OemVehicleHardware.h"
+
+#include <android-base/logging.h>
+#include <net/if.h>
+#include <sys/socket.h>
+#include <cmath>
+
+namespace android::hardware::automotive::vehicle::oem {
+
+using aidlvhal::StatusCode;
+using aidlvhal::VehicleProperty;
+using aidlvhal::VehiclePropConfig;
+using aidlvhal::VehiclePropValue;
+
+constexpr int32_t kRow1Left  = toInt(aidlvhal::VehicleAreaSeat::ROW_1_LEFT);
+constexpr int32_t kRow1Right = toInt(aidlvhal::VehicleAreaSeat::ROW_1_RIGHT);
+
+OemVehicleHardware::OemVehicleHardware(std::string canInterface) {
+    mCanSocket = socket(PF_CAN, SOCK_RAW, CAN_RAW);                     «1»
+    ifreq ifr{};
+    strncpy(ifr.ifr_name, canInterface.c_str(), IFNAMSIZ - 1);
+    ioctl(mCanSocket, SIOCGIFINDEX, &ifr);
+    sockaddr_can addr{.can_family = AF_CAN, .can_ifindex = ifr.ifr_ifindex};
+    bind(mCanSocket, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    mRxThread = std::thread([this] { rxLoop(); });                      «2»
+}
+
+OemVehicleHardware::~OemVehicleHardware() {
+    mRunning = false;
+    shutdown(mCanSocket, SHUT_RDWR);
+    if (mRxThread.joinable()) mRxThread.join();
+    close(mCanSocket);
+}
+
+std::vector<VehiclePropConfig> OemVehicleHardware::getAllPropertyConfigs() const {
+    VehiclePropConfig hvacTemp{                                         «3»
+        .prop       = toInt(VehicleProperty::HVAC_TEMPERATURE_SET),
+        .access     = aidlvhal::VehiclePropertyAccess::READ_WRITE,
+        .changeMode = aidlvhal::VehiclePropertyChangeMode::ON_CHANGE,
+        .configArray = {160, 280, 5, 605, 825, 10},                     «4»
+    };
+    hvacTemp.areaConfigs = {
+        {.areaId = kRow1Left,  .minFloatValue = 16.0f, .maxFloatValue = 28.0f},
+        {.areaId = kRow1Right, .minFloatValue = 16.0f, .maxFloatValue = 28.0f},
+    };
+
+    VehiclePropConfig speed{                                            «5»
+        .prop          = toInt(VehicleProperty::PERF_VEHICLE_SPEED),
+        .access        = aidlvhal::VehiclePropertyAccess::READ,
+        .changeMode    = aidlvhal::VehiclePropertyChangeMode::CONTINUOUS,
+        .minSampleRate = 1.0f,
+        .maxSampleRate = 10.0f,
+    };
+    speed.areaConfigs = {{.areaId = 0}};
+    return {hvacTemp, speed};
+}
+
+StatusCode OemVehicleHardware::setValues(
+        std::shared_ptr<const SetValuesCallback> callback,
+        const std::vector<aidlvhal::SetValueRequest>& requests) {
+    std::vector<aidlvhal::SetValueResult> results;
+    results.reserve(requests.size());
+    for (const auto& req : requests) {
+        results.push_back({.requestId = req.requestId,                  «6»
+                           .status    = handleSet(req.value)});
+    }
+    (*callback)(std::move(results));                                    «7»
+    return StatusCode::OK;
+}
+
+StatusCode OemVehicleHardware::handleSet(const VehiclePropValue& v) {
+    switch (v.prop) {
+        case toInt(VehicleProperty::HVAC_TEMPERATURE_SET): {            «8»
+            if (v.value.floatValues.size() != 1) return StatusCode::INVALID_ARG;
+            const float celsius = v.value.floatValues[0];
+            can_frame f{};
+            f.can_id  = kCanIdHvacCmd;
+            f.can_dlc = 8;
+            f.data[0] = (v.areaId == kRow1Left) ? 0x01 : 0x02;
+            f.data[1] = static_cast<uint8_t>(std::lround(celsius / kTempFactor));  «9»
+            f.data[2] = mCounter++ & 0x0F;
+            f.data[7] = crc8(f.data, 7);
+            return writeFrame(f) ? StatusCode::OK : StatusCode::TRY_AGAIN;  «10»
+        }
+        default:
+            return StatusCode::NOT_AVAILABLE;
+    }
+}
+
+void OemVehicleHardware::rxLoop() {
+    while (mRunning) {
+        can_frame f{};
+        if (read(mCanSocket, &f, sizeof(f)) == sizeof(f)) onFrame(f);   «11»
+    }
+}
+
+void OemVehicleHardware::onFrame(const can_frame& f) {
+    VehiclePropValue v{.timestamp = elapsedRealtimeNano(),
+                       .status    = aidlvhal::VehiclePropertyStatus::AVAILABLE};
+    switch (f.can_id) {
+        case kCanIdHvacStatus:                                          «12»
+            v.prop   = toInt(VehicleProperty::HVAC_TEMPERATURE_SET);
+            v.areaId = (f.data[0] == 0x01) ? kRow1Left : kRow1Right;
+            v.value.floatValues = {f.data[1] * kTempFactor};
+            break;
+        case kCanIdSpeed:
+            v.prop   = toInt(VehicleProperty::PERF_VEHICLE_SPEED);
+            v.areaId = 0;
+            v.value.floatValues = {((f.data[0] << 8) | f.data[1]) * 0.01f};  // m/s
+            break;
+        default:
+            return;
+    }
+    {
+        std::scoped_lock lock(mLock);
+        mCache[(int64_t{v.prop} << 32) | static_cast<uint32_t>(v.areaId)] = v;
+    }
+    if (mOnPropertyChange) (*mOnPropertyChange)({v});                   «13»
+}
+
+void OemVehicleHardware::registerOnPropertyChangeEvent(
+        std::unique_ptr<const PropertyChangeCallback> callback) {
+    mOnPropertyChange = std::move(callback);
+}
+
+// getValues(): read from mCache and return GetValueResults via the callback (like setValues).
+// updateSampleRate(): configure the MCU's transmit period if supported; returns OK here.
+
+}  // namespace android::hardware::automotive::vehicle::oem
+
+// ===== src/VehicleService.cpp =====
+int main() {
+    using namespace android::hardware::automotive::vehicle;
+    auto hardware = std::make_unique<oem::OemVehicleHardware>("can0");
+    auto vhal = ndk::SharedRefBase::make<DefaultVehicleHal>(std::move(hardware));  «14»
+
+    ABinderProcess_setThreadPoolMaxThreadCount(4);
+    const std::string instance = std::string(DefaultVehicleHal::descriptor) + "/default";
+    CHECK_EQ(AServiceManager_addService(vhal->asBinder().get(), instance.c_str()),  «15»
+             STATUS_OK);
+    ABinderProcess_startThreadPool();
+    ABinderProcess_joinThreadPool();
+    return 0;
+}
+</script>
+
+<script type="text/plain" id="src-build">
+// ===== vendor/oem/hardware/vehicle/Android.bp =====
+cc_binary {
+    name: "android.hardware.automotive.vehicle@V2-oem-service",         «1»
+    vendor: true,
+    relative_install_path: "hw",
+    defaults: [
+        "VehicleHalDefaults",
+        "android-automotive-large-parcelable-defaults",
+    ],
+    srcs: ["src/*.cpp"],
+    local_include_dirs: ["include"],
+    static_libs: [
+        "DefaultVehicleHal",                                            «2»
+        "VehicleHalUtils",
+    ],
+    header_libs: ["IVehicleHardware"],
+    shared_libs: ["libbinder_ndk", "liblog", "libbase"],
+    init_rc: ["vhal-oem-service.rc"],                                   «3»
+    vintf_fragments: ["vhal-oem-service.xml"],
+}
+
+# ===== vhal-oem-service.rc =====
+service vendor.vehicle-hal-oem /vendor/bin/hw/android.hardware.automotive.vehicle@V2-oem-service
+    class early_hal                                                     «4»
+    user vehicle_network
+    group system inet
+
+# ===== vhal-oem-service.xml (VINTF fragment) =====
+# <manifest version="1.0" type="device">
+#     <hal format="aidl">
+#         <name>android.hardware.automotive.vehicle</name>
+#         <version>2</version>                                         «5»
+#         <fqname>IVehicle/default</fqname>
+#     </hal>
+# </manifest>
+
+# ===== sepolicy/vendor/hal_vehicle_oem.te =====
+type hal_vehicle_oem, domain;
+hal_server_domain(hal_vehicle_oem, hal_vehicle)                         «6»
+type hal_vehicle_oem_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(hal_vehicle_oem)
+allow hal_vehicle_oem self:can_socket { create bind read write setopt getopt };  «7»
+
+# ===== sepolicy/vendor/file_contexts =====
+/vendor/bin/hw/android\.hardware\.automotive\.vehicle@V2-oem-service  u:object_r:hal_vehicle_oem_exec:s0
+
+# ===== device/oem/product/device.mk =====
+PRODUCT_PACKAGES += android.hardware.automotive.vehicle@V2-oem-service  «8»
+</script>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/pages/code.js"></script>
+</body>
+</html>

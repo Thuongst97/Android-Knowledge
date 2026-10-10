@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>5-Layer Architecture — AAOS 14 Academy</title>
+  <meta name="description" content="The 5-layer architecture of Android Automotive OS 14: Applications, Car API & CarService, AIDL IPC, VHAL, MCU & Vehicle Bus.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="architecture">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 02</span></nav>
+          <div class="eyebrow">Module 02 · Architecture</div>
+          <h1>The 5-Layer AAOS 14 Architecture</h1>
+          <p class="lead">Every feature in the car — from the A/C button to the speedometer — flows through the same five-layer pipeline. Understand this pipeline and you understand 80% of AAOS.</p>
+          <div class="page-meta"><span>⏱ 20 min read</span><span>🎯 Beginner → Intermediate</span><span>📂 packages/services/Car · hardware/interfaces/automotive</span></div>
+        </header>
+
+        <section class="doc-section" id="diagrams" data-title="High-level architecture diagrams">
+          <div class="sec-head"><h2><span class="sec-num">2.0</span>High-level architecture diagrams</h2></div>
+          <p>Three complementary views of the same system. Start with the <strong>system overview</strong> (what exists), then zoom into <strong>CarService</strong> (where vehicle policy lives), then the <strong>partitions & processes</strong> view (who ships what, and where the process boundaries are). Hover a block for a short description.</p>
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="overview" aria-selected="true">① System overview</button>
+              <button data-tab="carservice">② CarService internals</button>
+              <button data-tab="partitions">③ Partitions & processes</button>
+            </div>
+            <div class="tab-panel" data-panel="overview">
+              <div class="glass"><div class="hd-wrap" id="hd-overview"></div>
+                <div class="hd-legend"><span style="color:#38bdf8"><i></i>/system &amp; /product</span><span style="color:#34d399"><i></i>/vendor (HALs)</span><span style="color:#fbbf24"><i></i>Linux kernel</span><span style="color:#94a3b8"><i></i>Hardware</span><span style="color:#a855f7"><i></i>Car-specific framework</span></div></div>
+              <p class="small muted mt">AAOS keeps the entire standard Android stack and adds the car-specific pieces in purple: the Car API, CarService, car native daemons and automotive HALs.</p>
+            </div>
+            <div class="tab-panel" data-panel="carservice">
+              <div class="glass"><div class="hd-wrap" id="hd-carservice"></div>
+                <div class="hd-legend"><span style="color:#c084fc"><i></i>Binder IPC</span><span style="color:#34d399"><i></i>OEM plug-in points (see <a href="extensions.html">OEM Extensibility</a>)</span></div></div>
+              <p class="small muted mt"><code>ICarImpl</code> creates and owns every car service. HAL-facing services never talk to the VHAL directly: they go through <code>VehicleHal</code>, which multiplexes one IVehicle connection into per-domain “HAL services”.</p>
+            </div>
+            <div class="tab-panel" data-panel="partitions">
+              <div class="glass"><div class="hd-wrap" id="hd-partitions"></div></div>
+              <p class="small muted mt">The vertical dashed line is the Treble boundary: only stable, versioned interfaces (AIDL with <code>@VintfStability</code>, sysprops, RRO-able resources) may cross it. This is what lets Google/OEMs update /system independently of /vendor.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="overview" data-title="Five layers at a glance">
+          <div class="sec-head"><h2><span class="sec-num">2.1</span>Five layers at a glance</h2></div>
+          <p>This is the map you will keep coming back to. The dashed regions are the four worlds of the stack — <strong>Android user space</strong>, <strong>system services</strong>, the <strong>native HAL</strong> on <code>/vendor</code> and the <strong>MCU / vehicle bus</strong> — separated by the L3 contract (the Treble boundary). The glowing connectors show how a request travels down (cyan) and how vehicle events come back up (green). Click a layer to open it in the explorer; hover a component for a one-line explanation.</p>
+          <div id="stack5" class="s5" aria-label="AAOS 14 five-layer architecture"></div>
+          <div class="s5-legend"><span class="c-blue">Request / command (down)</span><span class="c-green">Vehicle event / callback (up)</span><span style="color:var(--purple-text)">Binder IPC</span><span class="c-amber">Hardware drivers / bus</span></div>
+          <details class="mt"><summary class="small muted" style="cursor:pointer">Show the same information as a table</summary>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>#</th><th>Layer</th><th>Representative components</th><th>Language</th><th>Process</th><th>Partition</th></tr></thead>
+              <tbody>
+                <tr><td><span class="c-blue mono">L1</span></td><td>Applications</td><td>CarLauncher, HVAC (CarSystemUI), Cluster, OEM apps</td><td>Kotlin/Java</td><td>One process per app</td><td>/system, /product, /data</td></tr>
+                <tr><td><span class="c-purple mono">L2</span></td><td>Car API & Framework</td><td><code>CarPropertyManager</code>, <code>CarAudioManager</code>, <code>CarPowerManager</code>, CarService</td><td>Java</td><td>API: in the app · CarService: <code>com.android.car</code></td><td>/system (+ updatable APEX)</td></tr>
+                <tr><td><span class="mono" style="color:#f472b6">L3</span></td><td>System IPC / AIDL</td><td><code>IVehicle.aidl</code>, <code>IVehicleCallback.aidl</code>, Binder, servicemanager</td><td>AIDL</td><td>Binder kernel driver</td><td>Stable system↔vendor contract</td></tr>
+                <tr><td><span class="c-green mono">L4</span></td><td>Vehicle HAL</td><td><code>DefaultVehicleHal</code> + <code>IVehicleHardware</code> (OEM)</td><td>C++</td><td><code>android.hardware.automotive.vehicle-service</code></td><td>/vendor</td></tr>
+                <tr><td><span class="c-amber mono">L5</span></td><td>MCU & Vehicle Bus</td><td>AUTOSAR MCU, CAN FD, LIN, Automotive Ethernet, SocketCAN/SPI drivers</td><td>C (embedded)</td><td>Kernel driver + MCU firmware</td><td>Outside Android</td></tr>
+              </tbody>
+            </table>
+          </div>
+          </details>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy: an international conference</span>
+              <p>Apps (L1) are <strong>delegates</strong> speaking English. The Car API (L2) is the <strong>standard request-to-speak form</strong>; CarService is the <strong>secretariat</strong> checking delegate badges. AIDL (L3) is the <strong>headset system</strong> — a fixed connector standard anyone can plug into. The VHAL (L4) is the <strong>interpreter</strong> who turns “Android-speak” into each carmaker's own CAN dialect. The MCU & bus (L5) are the <strong>foreign delegations</strong> who only understand their own language.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="signal-flow" data-title="End-to-end signal flow (HVAC)">
+          <div class="sec-head"><h2><span class="sec-num">2.2</span>End-to-end signal flow: A/C 22 °C → 24 °C</h2></div>
+          <p>The same five layers in motion. Press <strong>Play</strong> to send the command from the touchscreen down to the HVAC ECU and watch the confirmation travel back up. Click any node to jump to it and see the exact payload it handles.</p>
+          <div class="sf glass" id="signal-flow-diagram"></div>
+          <p class="small muted mt">Class and method names follow AOSP Android 14. The CAN IDs (0x3A2 / 0x3A3) and byte layout are hypothetical — every OEM defines its own in a DBC file.</p>
+        </section>
+
+        <section class="doc-section" id="explorer" data-title="Layer explorer">
+          <div class="sec-head"><h2><span class="sec-num">2.3</span>Layer explorer (interactive)</h2></div>
+          <p>Choose a layer on the left. Each layer has four tabs: <em>Components</em>, <em>In the source tree</em>, <em>Data flow</em> and <em>Analogy</em>. Use <kbd>↑</kbd>/<kbd>↓</kbd> to switch layers.</p>
+          <div class="layers mt">
+            <div class="layer-stack" id="layer-stack" role="listbox" aria-label="Architecture layers"></div>
+            <div class="layer-detail glass" id="layer-detail" aria-live="polite"></div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="treble" data-title="Treble boundary & VINTF">
+          <div class="sec-head"><h2><span class="sec-num">2.4</span>Treble boundary & VINTF</h2></div>
+          <p>Since Android 8 (Project Treble), Google's framework (<code>/system</code>) and OEM/SoC-vendor hardware code (<code>/vendor</code>) are separated by <strong>stable, versioned</strong> interfaces. For AAOS the most important one is <code>android.hardware.automotive.vehicle.IVehicle</code>.</p>
+          <div class="grid grid-2">
+            <div class="glass card">
+              <h4 class="c-purple">HIDL → AIDL</h4>
+              <p class="small">Android 8–12 used VHAL HIDL <code>@2.0</code>. Since Android 13 the VHAL uses <strong>Stable AIDL</strong> (<code>@VintfStability</code>). Android 14 ships VHAL AIDL <strong>V2</strong> and still supports HIDL VHALs through a compatibility client in CarService.</p>
+            </div>
+            <div class="glass card">
+              <h4 class="c-green">VINTF manifest</h4>
+              <p class="small">The vendor declares “I provide IVehicle/default version 2”; the framework compatibility matrix declares “I require IVehicle”. A mismatch fails the build or the boot — catching problems early.</p>
+            </div>
+          </div>
+          <div class="callout tip">
+            <div class="ci">✅</div>
+            <div><span class="ct">Practical consequence</span>
+              <p>An OEM can upgrade Android 14 → 15 on <code>/system</code> while <strong>keeping the VHAL unchanged</strong> on <code>/vendor</code>, as long as the interface remains compatible. That is why apps or CarService must <em>never</em> call vendor libraries directly.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="property-model" data-title="The Vehicle Property model">
+          <div class="sec-head"><h2><span class="sec-num">2.5</span>The Vehicle Property model</h2></div>
+          <p>All App ⇄ VHAL communication boils down to a single concept: the <strong>Vehicle Property</strong>. Each property has a 32-bit ID that encodes its own meaning:</p>
+          <div class="formula">
+            <span class="var">propId</span> <span class="op">=</span> group<span class="muted small">[31:28]</span> <span class="op">|</span> areaType<span class="muted small">[27:24]</span> <span class="op">|</span> valueType<span class="muted small">[23:16]</span> <span class="op">|</span> id<span class="muted small">[15:0]</span>
+          </div>
+
+          <div class="glass card">
+            <h4 style="margin-top:0">🔎 Property ID decoder</h4>
+            <div class="matrix-cols" id="prop-presets"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0">
+              <label for="prop-hex" class="small muted">Enter hex:</label>
+              <input id="prop-hex" class="mono" value="0x15600503" style="height:38px;border-radius:9px;background:var(--bg-3);border:1px solid var(--border);color:var(--text);padding:0 12px;width:180px">
+            </div>
+            <div class="bits" id="prop-bits"></div>
+            <div id="prop-out" class="small"></div>
+          </div>
+
+          <h3>Per-property configuration</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Field</th><th>Values</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>access</code></td><td>READ · WRITE · READ_WRITE</td><td>Allowed direction. Speed is READ; the temperature setpoint is READ_WRITE.</td></tr>
+                <tr><td><code>changeMode</code></td><td>STATIC · ON_CHANGE · CONTINUOUS</td><td>STATIC: never changes (VIN). ON_CHANGE: reported only when the value changes (door open). CONTINUOUS: sampled periodically at a sample rate (speed).</td></tr>
+                <tr><td><code>areaConfigs</code></td><td>areaId + min/max</td><td>Supported areas and per-area value limits (e.g. 16.0–28.0 °C per seat).</td></tr>
+                <tr><td><code>min/maxSampleRate</code></td><td>Hz</td><td>CONTINUOUS only: allowed subscription rates (e.g. 1–10 Hz).</td></tr>
+                <tr><td><code>configArray</code></td><td>int[]</td><td>Property-specific parameters. For HVAC_TEMPERATURE_SET: <code>[minC×10, maxC×10, stepC×10, minF×10, maxF×10, stepF×10]</code>.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout analogy">
+            <div class="ci">🎭</div>
+            <div><span class="ct">Analogy</span>
+              <p>A property ID is like a <strong>postal code that also encodes the parcel type</strong>: just from the number you know the region (group), district (area type), whether it is a letter or a parcel (value type) and the street number (id). The area ID is the <strong>specific room</strong> in that house — driver's seat or passenger's seat.</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js"></script>
+  <script src="assets/js/core.js"></script>
+  <script src="assets/js/diagrams.js"></script>
+  <script src="assets/js/pages/architecture.js"></script>
+  <script src="assets/js/pages/architecture-diagrams.js"></script>
+  <script src="assets/js/pages/architecture-stack.js"></script>
+</body>
+</html>
