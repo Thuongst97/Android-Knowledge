@@ -7,9 +7,9 @@
   D.layered($("#hd-users"), {
     id: "umodel", label: "Android users in AAOS with the headless system user",
     bands: [
-      { key: "u0", tag: "U0", title: ["Headless", "system user"], sub: ["user 0 · always running", "never on a display"] },
-      { key: "users", tag: "U10+", title: ["Personal users"], sub: ["one per occupant", "/data/user/<id>"] },
-      { key: "out", tag: "IO", amber: true, title: ["Displays & audio"], sub: ["per occupant zone"] },
+      { key: "u0", tag: "U0", tone: "fw", title: ["Headless", "system user"], sub: ["user 0 · always running", "never on a display"] },
+      { key: "users", tag: "U10+", tone: "app", title: ["Personal users"], sub: ["one per occupant", "/data/user/<id>"] },
+      { key: "out", tag: "IO", tone: "hw", title: ["Displays & audio"], sub: ["per occupant zone"] },
     ],
     nodes: [
       { id: "svc", band: "u0", at: [0, 0.3], title: "system services · CarService", sub: "vehicle-wide policy, survives every switch", tag: "Svc" },
@@ -42,7 +42,7 @@
       { key: "fw", tag: "L2", title: ["Android Framework", "& CarService"], sub: ["system_server"] },
       { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "Stable AIDL · VINTF isolation" },
       { key: "vendor", tag: "L4", title: ["Vendor Hardware", "Abstraction"], sub: ["/vendor"] },
-      { key: "hw", tag: "L5", amber: true, title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · ECUs"] },
+      { key: "hw", tag: "L5", title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · ECUs"] },
     ],
     nodes: [
       { id: "settings", band: "apps", title: "Settings · Profiles", sub: "add / switch / remove", tag: "App" },
@@ -79,12 +79,12 @@
 
   /* ------------------------- Switch sequence ------------------------- */
   const lanes = [
-    { title: "Profile picker UI", sub: "system app (user 10)" },
-    { title: "CarUserService", sub: "CarService · user 0" },
-    { title: "ActivityManager", sub: "system_server" },
-    { title: "VHAL · User HAL", sub: "SWITCH_USER" },
-    { title: "MCU / Gateway", sub: "profile owner" },
-    { title: "ECUs", sub: "seat · mirrors · cluster" },
+    { title: "Profile picker UI", sub: "system app (user 10)", tone: "app" },
+    { title: "CarUserService", sub: "CarService · user 0", tone: "fw" },
+    { title: "ActivityManager", sub: "system_server", tone: "fw" },
+    { title: "VHAL · User HAL", sub: "SWITCH_USER", tone: "hal" },
+    { title: "MCU / Gateway", sub: "profile owner", tone: "hw" },
+    { title: "ECUs", sub: "seat · mirrors · cluster", tone: "hw" },
   ];
   const steps = [
     { from: 0, to: 1, kind: "ipc", svg: "switchUser(user 11)", label: "CarUserManager.switchUser(UserSwitchRequest(11))", title: "Bea taps her profile", detail: "<p>The picker calls the car system API. The request crosses Binder into CarService, which runs in user 0 and therefore survives the switch it is about to perform.</p>", tags: [["Binder IPC", "purple"]], code: "carUserManager.switchUser(UserSwitchRequest.Builder(UserHandle.of(11)).build(), executor) { r -> }", codeLang: "kotlin" },
@@ -136,11 +136,11 @@
 
   /* ------------------------- Boot with key fob ------------------------- */
   const bootLanes = [
-    { title: "Key fob / BCM", sub: "body domain" },
-    { title: "MCU", sub: "profile owner" },
-    { title: "VHAL · User HAL", sub: "INITIAL_USER_INFO" },
-    { title: "CarUserService", sub: "CarService" },
-    { title: "ActivityManager", sub: "system_server" },
+    { title: "Key fob / BCM", sub: "body domain", tone: "hw" },
+    { title: "MCU", sub: "profile owner", tone: "hw" },
+    { title: "VHAL · User HAL", sub: "INITIAL_USER_INFO", tone: "hal" },
+    { title: "CarUserService", sub: "CarService", tone: "fw" },
+    { title: "ActivityManager", sub: "system_server", tone: "fw" },
   ];
   const bootSteps = [
     { from: 0, to: 1, kind: "hw", svg: "unlock with fob #2", label: "Car unlocked with key fob #2", title: "Bea unlocks the car", detail: "<p>The body domain identifies which key fob was used and informs the MCU.</p>" },

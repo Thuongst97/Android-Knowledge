@@ -8,7 +8,7 @@
     { key: "fw", tag: "L2", title: ["Android Framework", "& CarService"], sub: ["system_server"] },
     { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "Stable AIDL · VINTF isolation" },
     { key: "vendor", tag: "L4", title: ["Vendor Hardware", "Abstraction"], sub: ["/vendor · /odm"] },
-    { key: "hw", tag: "L5", amber: true, title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · CAN-FD · ECUs"] },
+    { key: "hw", tag: "L5", title: ["Vehicle Bus &", "Hardware"], sub: ["MCU · CAN-FD · ECUs"] },
   ];
 
   /* ---------- ① System architecture ---------- */
@@ -108,7 +108,7 @@
       { key: "system", tag: "L2", title: ["/system"], sub: ["Google framework", "GSI-replaceable"] },
       { key: "treble", tag: "L3", treble: true, title: "Treble boundary", sub: "only stable AIDL / VINTF crosses" },
       { key: "vendor", tag: "L4", title: ["/vendor · /odm"], sub: ["SoC vendor + OEM", "hardware code"] },
-      { key: "kernel", tag: "L5", amber: true, title: ["Kernel &", "firmware"], sub: ["boot image · MCU"] },
+      { key: "kernel", tag: "L5", title: ["Kernel &", "firmware"], sub: ["boot image · MCU"] },
     ],
     nodes: [
       { id: "p-launch", band: "product", title: "CarLauncher", sub: "home", tag: "App" },

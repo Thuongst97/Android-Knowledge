@@ -4,12 +4,12 @@
 
   /* ----------------------------- Garage Mode sequence ----------------------------- */
   const lanes = [
-    { title: "Driver / Vehicle", sub: "Ignition · door lock" },
-    { title: "MCU + VHAL", sub: "AP_POWER_STATE_*" },
-    { title: "CPMS", sub: "CarPowerManagementService" },
-    { title: "GarageMode", sub: "GarageModeController" },
-    { title: "JobScheduler", sub: "apps' idle jobs" },
-    { title: "Linux Kernel", sub: "/sys/power/state" },
+    { title: "Driver / Vehicle", sub: "Ignition · door lock", tone: "hw" },
+    { title: "MCU + VHAL", sub: "AP_POWER_STATE_*", tone: "hw" },
+    { title: "CPMS", sub: "CarPowerManagementService", tone: "fw" },
+    { title: "GarageMode", sub: "GarageModeController", tone: "fw" },
+    { title: "JobScheduler", sub: "apps' idle jobs", tone: "fw" },
+    { title: "Linux Kernel", sub: "/sys/power/state", tone: "native" },
   ];
   const steps = [
     { from: 0, to: 1, kind: "hw", svg: "IGN OFF", label: "Ignition off, doors locked", title: "Driver switches off and leaves", detail: "<p>The MCU detects ignition OFF (over CAN from the BCM). It decides it is time to ask Android to prepare for shutdown, and picks the shutdown type based on OEM configuration, battery voltage and whether an OTA is pending.</p>", tags: [["MCU", "purple"]] },

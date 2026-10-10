@@ -5,9 +5,9 @@
   D.layered($("#hd-process"), {
     id: "anat", label: "Anatomy of an Android app process",
     bands: [
-      { key: "app", tag: "PROC", title: ["App process"], sub: ["com.oem.hvac", "UID u10_a123", "forked from Zygote"] },
-      { key: "kernel", tag: "KRNL", amber: true, title: ["Linux kernel"], sub: ["/dev/binder"] },
-      { key: "sys", tag: "PROC", title: ["System", "processes"], sub: ["system_server", "com.android.car"] },
+      { key: "app", tag: "PROC", tone: "app", title: ["App process"], sub: ["com.oem.hvac", "UID u10_a123", "forked from Zygote"] },
+      { key: "kernel", tag: "KRNL", tone: "native", title: ["Linux kernel"], sub: ["/dev/binder"] },
+      { key: "sys", tag: "PROC", tone: "fw", title: ["System", "processes"], sub: ["system_server", "com.android.car"] },
     ],
     nodes: [
       { id: "main", band: "app", at: [0, 0.32], title: "Main thread", sub: "Looper + MessageQueue · UI · lifecycle · Car API callbacks", tag: "Thread", hl: true, tip: "Main thread — runs a Looper: UI, input, lifecycle callbacks and (by default) Car API callbacks. Never block it." },
@@ -32,11 +32,11 @@
 
   /* ------------------------- Binder call sequence ------------------------- */
   const lanes = [
-    { title: "Client code", sub: "app thread" },
-    { title: "Proxy", sub: "Stub.Proxy → BpBinder" },
-    { title: "Binder driver", sub: "kernel /dev/binder" },
-    { title: "Server binder thread", sub: "IPCThreadState · BBinder" },
-    { title: "Service impl", sub: "ITelemetry.Stub" },
+    { title: "Client code", sub: "app thread", tone: "app" },
+    { title: "Proxy", sub: "Stub.Proxy → BpBinder", tone: "app" },
+    { title: "Binder driver", sub: "kernel /dev/binder", tone: "native" },
+    { title: "Server binder thread", sub: "IPCThreadState · BBinder", tone: "fw" },
+    { title: "Service impl", sub: "ITelemetry.Stub", tone: "fw" },
   ];
   const steps = [
     { from: 0, to: 1, kind: "call", svg: "service.lastSpeedKmh()", label: "service.lastSpeedKmh()", title: "Client calls a method on the proxy", detail: "<p>The client holds an <code>ITelemetry</code> obtained from <code>Stub.asInterface(binder)</code>. For a remote object this is a generated <strong>proxy</strong>; to the caller it looks like a normal method call.</p>", code: "val kmh = service.lastSpeedKmh()   // looks local, is remote", codeLang: "kotlin" },
