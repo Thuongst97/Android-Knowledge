@@ -171,6 +171,7 @@ PRODUCT_PACKAGES += \
           <div id="plugin-seq"></div>
 
           <h3>Writing the plug-in service</h3>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="com/oem/car/telemetry/TelemetryService.kt" data-label="Kotlin">
 class TelemetryService : Service() {
 
@@ -204,6 +205,41 @@ class TelemetryService : Service() {
     }
 }
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="com/oem/car/telemetry/TelemetryService.java" data-label="Java">
+public class TelemetryService extends Service {
+
+    private Car car;
+    private volatile float latestSpeed;
+    private final ITelemetry.Stub binder = new ITelemetry.Stub() {   // optional API for other OEM apps
+        @Override public float lastSpeedKmh() { return latestSpeed * 3.6f; }
+    };
+
+    @Override public void onCreate() {
+        super.onCreate();
+        car = Car.createCar(this, null, Car.CAR_WAIT_TIMEOUT_WAIT_FOREVER, (c, ready) -> {
+            if (!ready) return;                                     // CarService restarting
+            CarPropertyManager pm = (CarPropertyManager) c.getCarManager(Car.PROPERTY_SERVICE);
+            pm.registerCallback(speedCallback, VehiclePropertyIds.PERF_VEHICLE_SPEED,
+                    CarPropertyManager.SENSOR_RATE_NORMAL);
+        });
+    }
+
+    // With bind=bind, VendorServiceController binds: onBind must return a non-null binder
+    @Override public IBinder onBind(Intent intent) { return binder; }
+
+    @Override public void onDestroy() {
+        if (car != null) car.disconnect();
+        super.onDestroy();
+    }
+
+    private final CarPropertyManager.CarPropertyEventCallback speedCallback =
+            new CarPropertyManager.CarPropertyEventCallback() {
+                @Override public void onChangeEvent(CarPropertyValue v) { latestSpeed = (Float) v.getValue(); }
+                @Override public void onErrorEvent(int propId, int areaId) {}
+            };
+}
+          </script>
+          </div>
           <script type="text/plain" data-code data-lang="xml" data-file="OemTelemetry/AndroidManifest.xml" data-label="XML">
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.oem.car.telemetry">
@@ -254,6 +290,7 @@ class TelemetryService : Service() {
               <p class="small muted">Each is optional: if a component is not provided, the car audio service keeps its default behavior for that area.</p>
             </div>
           </div>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="com/oem/car/policy/OemPolicyService.kt (abridged, illustrative)" data-label="Kotlin">
 class OemPolicyService : OemCarService() {
 
@@ -276,6 +313,28 @@ class OemPolicyService : OemCarService() {
     override fun onCarServiceReady() {}
 }
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="com/oem/car/policy/OemPolicyService.java (abridged, illustrative)" data-label="Java">
+public class OemPolicyService extends OemCarService {
+
+    private final OemCarAudioFocusService focusPolicy = new OemCarAudioFocusService() {
+        @Override public OemCarAudioFocusResult evaluateAudioFocusRequest(
+                OemCarAudioFocusEvaluationRequest request) {
+            // Example OEM rule: navigation prompts never interrupt an active phone call
+            // → build and return a result granting, delaying or rejecting the request
+            return decide(request);
+        }
+        @Override public void init() {}
+        @Override public void release() {}
+        @Override public void onCarServiceReady() {}
+        @Override public void dump(PrintWriter writer, String[] args) {}
+    };
+
+    @Override public OemCarAudioFocusService getOemAudioFocusService() { return focusPolicy; }
+    @Override public CarVersion getSupportedCarVersion() { return CarVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0; }
+    @Override public void onCarServiceReady() {}
+}
+          </script>
+          </div>
           <script type="text/plain" data-code data-lang="xml" data-file="OemPolicyService/AndroidManifest.xml" data-label="XML">
 <service
     android:name=".OemPolicyService"

@@ -102,6 +102,7 @@ oneway interface ISpeedListener {
               </script>
             </div>
             <div class="tab-panel" data-panel="server">
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="TelemetryService.kt" data-label="Kotlin">
 class TelemetryService : Service() {
 
@@ -134,8 +135,48 @@ class TelemetryService : Service() {
     private companion object { const val TAG = "Telemetry" }
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="TelemetryService.java" data-label="Java">
+public class TelemetryService extends Service {
+    private static final String TAG = "Telemetry";
+
+    private final RemoteCallbackList<ISpeedListener> listeners =
+            new RemoteCallbackList<>();                          // handles client death for us
+    private volatile float speedKmh;
+
+    private final ITelemetry.Stub binder = new ITelemetry.Stub() {
+        // Runs on a BINDER THREAD, concurrently with other calls
+        @Override public float lastSpeedKmh() {
+            enforceCallingPermission("com.oem.permission.READ_TELEMETRY", "lastSpeedKmh");
+            return speedKmh;
+        }
+
+        @Override public void registerListener(ISpeedListener listener) {
+            int uid = Binder.getCallingUid();                    // kernel-provided, cannot be spoofed
+            Log.i(TAG, "listener registered by uid=" + uid);
+            listeners.register(listener);
+        }
+    };
+
+    @Override public IBinder onBind(Intent intent) { return binder; }
+
+    public void publish(float kmh) {
+        speedKmh = kmh;
+        int n = listeners.beginBroadcast();
+        for (int i = 0; i < n; i++) {
+            try {
+                listeners.getBroadcastItem(i).onSpeed(kmh);       // oneway calls
+            } catch (RemoteException ignored) {
+                // client died; RemoteCallbackList drops it
+            }
+        }
+        listeners.finishBroadcast();
+    }
+}
+              </script>
+              </div>
             </div>
             <div class="tab-panel" data-panel="client">
+              <div class="lang-switch">
               <script type="text/plain" data-code data-lang="kotlin" data-file="TelemetryClient.kt" data-label="Kotlin">
 class TelemetryClient(private val context: Context) {
 
@@ -174,6 +215,51 @@ class TelemetryClient(private val context: Context) {
     private companion object { const val TAG = "TelemetryClient" }
 }
               </script>
+              <script type="text/plain" data-code data-lang="java" data-file="TelemetryClient.java" data-label="Java">
+public class TelemetryClient {
+    private static final String TAG = "TelemetryClient";
+
+    private final Context context;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private volatile ITelemetry service;
+    private TextView speedView;
+
+    public TelemetryClient(Context context) { this.context = context; }
+
+    private final IBinder.DeathRecipient deathRecipient = () -> {
+        Log.w(TAG, "telemetry process died — rebinding");
+        service = null;
+        bind();                                                  // called on a binder thread
+    };
+
+    private final ServiceConnection connection = new ServiceConnection() {
+        @Override public void onServiceConnected(ComponentName name, IBinder binder) {   // main thread
+            try {
+                binder.linkToDeath(deathRecipient, 0);           // Java makes you handle RemoteException
+                service = ITelemetry.Stub.asInterface(binder);   // returns a proxy
+                service.registerListener(listener);
+            } catch (RemoteException e) {
+                Log.w(TAG, "service died during setup", e);
+            }
+        }
+        @Override public void onServiceDisconnected(ComponentName name) { service = null; }
+    };
+
+    // Our own Binder object: the service calls it back on OUR binder threads
+    private final ISpeedListener listener = new ISpeedListener.Stub() {
+        @Override public void onSpeed(float kmh) {
+            mainHandler.post(() -> speedView.setText(String.format("%.0f km/h", kmh)));   // hop to the UI thread
+        }
+    };
+
+    public void bind() {
+        Intent intent = new Intent().setComponent(new ComponentName(
+                "com.oem.car.telemetry", "com.oem.car.telemetry.TelemetryService"));
+        context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
+    }
+}
+              </script>
+              </div>
             </div>
           </div>
           <div class="callout tip">
@@ -217,6 +303,7 @@ public static void loop() {
 }
           </script>
           <h3>A worker thread with its own Looper</h3>
+          <div class="lang-switch">
           <script type="text/plain" data-code data-lang="kotlin" data-file="VehicleEventWorker.kt" data-label="Kotlin">
 // A dedicated thread for vehicle events: ordered, off the UI thread, no locks needed for its state
 val worker = HandlerThread("vehicle-events").apply { start() }
@@ -232,6 +319,23 @@ workerHandler.postDelayed({ flushToDisk() }, 5_000)         // 5 s of UPTIME, se
 // When done:
 worker.quitSafely()                                         // finishes due messages, then stops
           </script>
+          <script type="text/plain" data-code data-lang="java" data-file="VehicleEventWorker.java" data-label="Java">
+// A dedicated thread for vehicle events: ordered, off the UI thread, no locks needed for its state
+HandlerThread worker = new HandlerThread("vehicle-events");
+worker.start();
+Handler workerHandler = new Handler(worker.getLooper());
+
+// Car API callbacks can be delivered straight onto that thread
+Car car = Car.createCar(context, workerHandler);            // Car events dispatched on worker's Looper
+
+workerHandler.post(() -> parseAndCache());                  // runs on "vehicle-events"
+workerHandler.sendMessage(Message.obtain(workerHandler, MSG_FLUSH));   // obtain() reuses pooled Messages
+workerHandler.postDelayed(() -> flushToDisk(), 5_000);      // 5 s of UPTIME, see note below
+
+// When done:
+worker.quitSafely();                                        // finishes due messages, then stops
+          </script>
+          </div>
           <div class="callout warn">
             <div class="ci">🚗</div>
             <div><span class="ct">Automotive gotcha: delays don't count deep sleep</span>

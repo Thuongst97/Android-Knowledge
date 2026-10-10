@@ -658,6 +658,58 @@
     wireCopy(root);
   }
 
+  /**
+   * <div class="lang-switch"> holding several data-code blocks (e.g. Kotlin + Java) becomes a
+   * small tab bar. Picking a language switches every such block on the page and is remembered.
+   */
+  const LANG_KEY = "aaos-code-lang";
+  function selectLang(group, lang) {
+    $$(":scope > .tab-list > button", group).forEach((b) => {
+      const on = b.dataset.tab === lang;
+      b.setAttribute("aria-selected", on);
+      b.tabIndex = on ? 0 : -1;
+    });
+    $$(":scope > .tab-panel", group).forEach((p) => p.classList.toggle("active", p.dataset.panel === lang));
+  }
+  const hasLang = (group, lang) => !!(lang && $(`:scope > .tab-panel[data-panel="${lang}"]`, group));
+  function initLangSwitch(root = document) {
+    let saved = null;
+    try { saved = localStorage.getItem(LANG_KEY); } catch (e) { /* ignore */ }
+    $$(".lang-switch", root).forEach((g) => {
+      if (g.dataset.ready) return;
+      g.dataset.ready = "1";
+      const blocks = $$(":scope > .code-block", g);
+      const langs = blocks.map((b) => $(".lang", b).textContent.trim());
+      const bar = document.createElement("div");
+      bar.className = "tab-list";
+      bar.setAttribute("role", "tablist");
+      bar.innerHTML = langs.map((l) => `<button type="button" role="tab" data-tab="${esc(l.toLowerCase())}">${esc(l)}</button>`).join("");
+      g.prepend(bar);
+      blocks.forEach((b, i) => {
+        const panel = document.createElement("div");
+        panel.className = "tab-panel";
+        panel.dataset.panel = langs[i].toLowerCase();
+        b.replaceWith(panel);
+        panel.appendChild(b);
+      });
+      const btns = $$("button", bar);
+      btns.forEach((b, i) => {
+        b.addEventListener("click", () => {
+          // Switch every group on the page that offers this language
+          $$(".lang-switch[data-ready]").forEach((o) => hasLang(o, b.dataset.tab) && selectLang(o, b.dataset.tab));
+          try { localStorage.setItem(LANG_KEY, b.dataset.tab); } catch (e) { /* ignore */ }
+        });
+        b.addEventListener("keydown", (e) => {
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+          const n = btns[(i + (e.key === "ArrowRight" ? 1 : -1) + btns.length) % btns.length];
+          n.click();
+          n.focus();
+        });
+      });
+      selectLang(g, hasLang(g, saved) ? saved : btns[0].dataset.tab);
+    });
+  }
+
   /** Annotated explorer: code on the left, explanations on the right */
   function renderCodeExplorer(host, spec) {
     const { code, marks } = parseMarks(spec.src);
@@ -892,6 +944,7 @@
     initScrollspy();
     initTabs();
     renderStaticCode();
+    initLangSwitch();
     initSoftBreaks();
     if (location.hash) {
       const jump = () => {
