@@ -285,8 +285,8 @@ public class TelemetryClient {
             </div>
           </div>
 
-          <h3>Looper simulator (interactive)</h3>
-          <p class="small muted">Simulated time runs at 2× speed. Post work, add delayed messages, send a touch event, then try the heavy task and watch the input event wait until an ANR is raised.</p>
+          <h3>How HandlerThread, Looper and Handler work together (step by step)</h3>
+          <p class="small muted">Follow one worker thread from <code>new HandlerThread()</code> to <code>quitSafely()</code>: how the Looper and its queue are created, how a Handler sends a message, how the Looper pops it and calls <code>handleMessage()</code>, and how <code>sendMessageDelayed()</code> is ordered and timed. Uptime values are illustrative.</p>
           <div class="glass card" id="looper-sim"></div>
 
           <h3>What the loop actually does</h3>
