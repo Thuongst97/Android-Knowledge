@@ -132,8 +132,9 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
 }
 .brand small { display: block; font-size: 0.68rem; color: var(--muted); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; }
 .brand span { line-height: 1.15; }
-.main-nav { display: flex; gap: 2px; margin-left: 12px; }
+.main-nav { display: flex; align-items: center; gap: 2px; margin-left: 12px; }
 .main-nav a, .nav-drop > button {
+  display: inline-flex; align-items: center; line-height: 1.5; /* the button doesn't inherit body line-height, so set both */
   color: var(--muted); font-size: 0.9rem; font-weight: 550;
   padding: 7px 12px; border-radius: 8px; background: none; border: 0; cursor: pointer; font-family: inherit;
 }
