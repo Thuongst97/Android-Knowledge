@@ -262,9 +262,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
   backdrop-filter: blur(10px);
 }
 .sec-head h2 { margin: 0; display: flex; align-items: baseline; gap: 12px; }
+.sec-head h2 code { overflow-wrap: anywhere; }
+@media (max-width: 560px) { .sec-head h2 { display: block; } .sec-head .sec-num { margin-right: 8px; } } /* inline flow wraps long titles the flex row can't */
 .sec-head .sec-num { font-family: var(--mono); font-size: 0.85rem; color: var(--sechead-num); font-weight: 600; }
 .sec-head .anchor { opacity: 0; color: var(--faint); font-size: 1rem; }
 .sec-head:hover .anchor { opacity: 1; }
+@media (hover: none), (max-width: 900px) { .sec-head .anchor { display: none; } } /* hover-only affordance; also keeps long titles from widening the page */
 
 /* ------------------------------------------------------------ Components */
 .glass {
@@ -340,6 +343,12 @@ table.t thead th { background: var(--thead-bg); color: var(--text); font-weight:
 table.t tbody tr:last-child td { border-bottom: 0; }
 table.t tbody tr:hover td { background: rgba(112, 207, 248, 0.04); }
 table.t td:first-child { color: var(--text); font-weight: 550; }
+/* option tables: whole-token chips instead of wrapping "a · b · c" runs */
+.opt-table .opt-c-opt { width: 21%; } .opt-table .opt-c-val { width: 27%; }
+.opt-table code { white-space: nowrap; }
+.opt-def { display: block; margin-top: 6px; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+.opt-vals { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 700px) { .opt-table .opt-c-opt, .opt-table .opt-c-val { width: auto; } .opt-table td:last-child code { white-space: normal; } }
 
 /* Tabs */
 .tabs { margin: 18px 0; }
@@ -686,7 +695,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
 .gloss-item p { margin: 0; font-size: 0.88rem; }
 
 /* Formula */
-.formula { font-family: var(--mono); font-size: 1rem; text-align: center; padding: 18px; margin: 16px 0; border-radius: 12px; background: var(--formula-bg); border: 1px solid var(--border); color: var(--text); }
+.formula { font-family: var(--mono); font-size: 1rem; text-align: center; padding: 18px; margin: 16px 0; border-radius: 12px; background: var(--formula-bg); border: 1px solid var(--border); color: var(--text); overflow-wrap: anywhere; }
 .formula .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 6px; }
 .formula .frac span:first-child { border-bottom: 1px solid var(--text-2); padding: 0 6px 2px; }
 .formula .frac span:last-child { padding-top: 2px; }
@@ -703,7 +712,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
   .hero-inner { grid-template-columns: 1fr; }
   .path-steps { grid-template-columns: repeat(2, 1fr); }
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .deploy, .layers, .sm-wrap, .code-explorer, .cabin, .seq-detail, .perm-check, .trace-top { grid-template-columns: 1fr; }
+  .deploy, .layers, .sm-wrap, .code-explorer, .cabin, .seq-detail, .perm-check, .trace-top { grid-template-columns: minmax(0, 1fr); }
   .seq-detail > div + div { border-left: 0; border-top: 1px solid var(--border); }
   .layer-stack, .info-panel, .ann-list { position: static; }
 }
