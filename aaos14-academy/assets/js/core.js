@@ -472,7 +472,7 @@
       <p class="small muted">Primary sources for the material on this page. Documentation evolves with each Android release — when in doubt, the AOSP source for your branch is the final authority.</p>
       <div class="ref-list">${keys.map((k) => {
         const [title, url] = R[k];
-        return `<a class="ref-item glass" href="${url}" target="_blank" rel="noopener"><b>${esc(title)}</b><small>${esc(host(url))}${esc(url.replace(/^https:\/\/[^/]+/, "").slice(0, 70))}${url.length > 95 ? "…" : ""}</small></a>`;
+        return `<a class="ref-item glass" href="${url}" target="_blank" rel="noopener"><b>${esc(title)}</b><small>${esc(url.replace(/^https:\/\//, "")).replace(/([/_.+-])(?=[^/_.+-])/g, "$1<wbr>")}</small></a>`;
       }).join("")}</div>`;
     pager.parentNode.insertBefore(sec, pager);
   }
@@ -853,6 +853,26 @@
     window.addEventListener("scroll", hide, { passive: true });
   }
 
+  /* ------------------------------------------- Soft breaks in inline code */
+  /** Long identifiers (SHUTDOWN_PREPARE, a/very/long/path, android.car.permission.X) may only wrap
+      after "_", "." or "/" — never in the middle of a word. */
+  function softBreak(root) {
+    const list = root.matches && root.matches(":not(pre) > code") ? [root] : $$(":not(pre) > code", root);
+    list.forEach((c) => {
+      if (c.dataset.soft || c.children.length) return;
+      c.dataset.soft = "1";
+      // Short identifiers in a table's key (first) column stay on one line; the column widens to fit.
+      if (c.closest("td:first-child, th:first-child") && c.textContent.length <= 26) { c.classList.add("nowrap"); return; }
+      if (c.textContent.length < 14) return;
+      c.innerHTML = esc(c.textContent).replace(/([_./(]|::)(?=[^_./(:\s])/g, "$1<wbr>");
+    });
+  }
+  function initSoftBreaks() {
+    softBreak(document.body);
+    new MutationObserver((muts) => muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) softBreak(n); })))
+      .observe(document.body, { childList: true, subtree: true });
+  }
+
   /* --------------------------------------------------------- Boot */
   function boot() {
     initTooltips();
@@ -867,6 +887,7 @@
     initScrollspy();
     initTabs();
     renderStaticCode();
+    initSoftBreaks();
     if (location.hash) {
       const jump = () => {
         const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));

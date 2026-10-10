@@ -82,7 +82,7 @@ code, kbd, pre { font-family: var(--mono); }
   padding: 0.12em 0.42em;
   border-radius: 6px;
   border: 1px solid rgba(112, 207, 248, 0.15);
-  word-break: break-word;
+  overflow-wrap: break-word; /* only breaks a token if it truly cannot fit; never shrinks table columns */
 }
 kbd {
   font-size: 0.75em;
@@ -333,7 +333,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 2.5rem 0; }
 .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); margin: 18px 0; background: var(--surface); }
 table.t { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 table.t th, table.t td { padding: 11px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
-table.t thead th { background: var(--thead-bg); color: var(--text); font-weight: 650; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+table.t thead th { background: var(--thead-bg); color: var(--text); font-weight: 650; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
 table.t tbody tr:last-child td { border-bottom: 0; }
 table.t tbody tr:hover td { background: rgba(112, 207, 248, 0.04); }
 table.t td:first-child { color: var(--text); font-weight: 550; }
@@ -743,7 +743,7 @@ table.fmatrix td.cell.sel { outline: 2px solid var(--blue); outline-offset: -2px
 .ref-item:hover { border-color: var(--blue); text-decoration: none; transform: translateY(-2px); }
 .ref-item b { display: block; color: var(--text); font-size: 0.9rem; }
 .ref-item b::after { content: " ↗"; color: var(--blue); font-weight: 400; }
-.ref-item small { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.72rem; word-break: break-all; margin-top: 2px; }
+.ref-item small { display: block; color: var(--muted); font-family: var(--mono); font-size: 0.72rem; overflow-wrap: anywhere; margin-top: 2px; }
 @media (max-width: 900px) { .ref-list { grid-template-columns: 1fr; } }
 
 /* ================================================================ Themes
@@ -1242,3 +1242,7 @@ code.mtag { color: var(--blue); background: var(--blue-dim); border-color: color
 .cab-body { stroke: var(--dg-card-border); }
 .cab-seat .seat-back { fill: var(--dg-card); }
 .s5-legend .hollow::before { background: transparent; border: 1.5px solid currentColor; width: 7px; height: 7px; }
+
+/* Inline identifiers inside table cells: short ones never wrap */
+code.nowrap { white-space: nowrap; }
+@media (max-width: 1100px) { table.t { font-size: 0.84rem; } table.t th, table.t td { padding: 9px 10px; } table.t .badge { white-space: normal; } }
