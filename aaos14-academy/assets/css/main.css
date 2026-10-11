@@ -493,10 +493,10 @@ table.matrix th.col-aa { color: var(--amber); } table.matrix th.col-aaos { color
 .dp-link { margin: -10px 0; }
 .dp-link span { padding-right: 52px; }
 /* here the trace runs straight down between rows, with a via pad on each rim, so it never covers block titles */
-.dp-link .ao-pipe { top: -3px; bottom: -3px; width: 0; border-width: 0 2px 0 0; border-radius: 0; }
-.dp-link .ao-pipe::before, .dp-link .ao-pipe::after { left: -3.5px; right: auto; }
-.dp-link .ao-pipe::before { top: -4.5px; bottom: auto; }
-.dp-link .ao-pipe::after { bottom: -4.5px; }
+.dp-link .ao-pipe { left: auto; right: 30px; top: -3px; bottom: -3px; width: 0; border-width: 0 2px 0 0; border-radius: 0; }
+.dp-link .ao-pipe::before, .dp-link .ao-pipe::after { left: -4px; right: auto; }
+.dp-link .ao-pipe::before { top: -5px; bottom: auto; }
+.dp-link .ao-pipe::after { bottom: -5px; background: var(--wire) 50% 0 / 2px 50% no-repeat, var(--dg-canvas); } /* wire arrives from above */
 .dp-soc {
   position: relative; z-index: 1; padding: 13px; border-radius: 14px;
   background: var(--ao-weave), color-mix(in srgb, var(--tn) 5%, var(--ao-tray));
@@ -1413,15 +1413,18 @@ code.nowrap { white-space: nowrap; }
 /* circuit trace: leaves the slab above at a via pad, bends left and lands on a pad on the slab below */
 .ao-pipe {
   position: absolute; right: 30px; top: -4px; bottom: -24px; width: 24%;
-  border: solid color-mix(in srgb, var(--tn) 80%, transparent); border-width: 0 2px 2px 0; border-bottom-right-radius: 10px;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--tn) 55%, transparent));
+  /* whole-pixel edges so the wire and its pads snap to the same pixels */
+  right: auto; left: round(down, calc(76% - 30px), 1px); width: round(down, 24%, 1px);
+  border: solid var(--tn); border-width: 0 2px 2px 0; border-bottom-right-radius: 10px;
 }
+/* via pads: each pad draws the last stretch of wire from its rim to its centre, so the trace visibly lands mid-pad */
 .ao-pipe::before, .ao-pipe::after {
-  content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--dg-canvas); border: 2px solid var(--tn);
+  content: ""; position: absolute; box-sizing: border-box; width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--tn); box-shadow: 0 0 5px color-mix(in srgb, var(--tn) 55%, transparent);
+  --wire: linear-gradient(var(--tn), var(--tn));
 }
-.ao-pipe::before { top: -4.5px; right: -5.5px; }
-.ao-pipe::after { bottom: -5.5px; left: -4.5px; }
+.ao-pipe::before { top: -5px; right: -6px; background: var(--wire) 50% 100% / 2px 50% no-repeat, var(--dg-canvas); }  /* wire leaves downward */
+.ao-pipe::after { bottom: -6px; left: -5px; background: var(--wire) 100% 50% / 50% 2px no-repeat, var(--dg-canvas); } /* wire arrives from the right */
 .ao-facts {
   position: relative; padding: 18px 22px 20px; border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--ao-card-a) 88%, transparent), color-mix(in srgb, var(--ao-card-b) 88%, transparent));
@@ -1447,7 +1450,7 @@ a.ao-cap h4::after { content: " →"; color: var(--blue); opacity: 0; transition
 a.ao-cap:hover h4::after { opacity: 1; }
 @media (max-width: 1100px) { .ao-caps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .ao-overview { grid-template-columns: 1fr; } }
-@media (max-width: 520px) { .ao-caps { grid-template-columns: 1fr; } .ao-facts dl { grid-template-columns: 1fr; gap: 2px; } .ao-facts dd { margin-bottom: 8px; } .ao-facts dd::after { display: none; } .ao-pipe { width: 18%; right: 20px; } }
+@media (max-width: 520px) { .ao-caps { grid-template-columns: 1fr; } .ao-facts dl { grid-template-columns: 1fr; gap: 2px; } .ao-facts dd { margin-bottom: 8px; } .ao-facts dd::after { display: none; } .ao-pipe { left: round(down, calc(82% - 20px), 1px); width: round(down, 18%, 1px); } }
 
 /* ------------------------------------------------ Landing hero illustration (tools/hero-art.py) */
 :root {
