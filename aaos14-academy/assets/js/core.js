@@ -137,6 +137,20 @@
       ],
     },
     {
+      id: "platform", file: "platform.html", num: "11", group: "Deep dive",
+      title: "AAOS Platform Deep Dive", short: "AAOS Platform Deep Dive", icon: "🗺️", accent: "#2dd4bf",
+      desc: "AAOS inside AOSP: the source tree, feature map, boot & init sequence, CarService internals, core techniques and every OEM extension point.",
+      sections: [
+        ["source-map", "Where AAOS lives in the source tree", "source tree aosp packages/services/Car car-lib hardware/interfaces/automotive packages/apps/Car device/generic/car cs.android.com"],
+        ["features", "Feature map", "features carpropertymanager carpowermanager caraudiomanager carusermanager evs cluster watchdog remote access"],
+        ["boot", "Boot & init sequence", "boot init sequence bootloader kernel init.rc zygote system_server carservicehelperservice icarimpl initial_user_info boot_completed"],
+        ["init-config", "Init, VINTF & product configuration", "init rc vintf manifest car.mk product makefile overlay"],
+        ["carservice", "Inside CarService: builtin & updatable", "builtin updatable apex com.android.car.framework carserviceimpl icarimpl car-builtin-lib"],
+        ["techniques", "Techniques AAOS is built on", "treble binder apex headless system user rro selinux mumd"],
+        ["oem", "OEM extension points", "oem extension rro plugin oemcarservice vendor property vendor hal"],
+      ],
+    },
+    {
       id: "glossary", file: "glossary.html", num: "A", group: "Reference",
       title: "Glossary", short: "Glossary", icon: "📖", accent: "#94a3b8",
       desc: "Quick reference for AAOS, AOSP and automotive terms.",
@@ -148,7 +162,12 @@
   const SA = "https://source.android.com/docs/";
   const DEV = "https://developer.android.com/";
   const GS = "https://android.googlesource.com/platform/";
+  const CSM = "https://cs.android.com/android/platform/superproject/main";
   const R = {
+    csRoot: ["Android Code Search — AOSP superproject (main)", CSM],
+    csCar: ["packages/services/Car on Code Search", CSM + "/+/main:packages/services/Car/"],
+    csCarApps: ["packages/apps/Car on Code Search", CSM + "/+/main:packages/apps/Car/"],
+    csAutoHal: ["hardware/interfaces/automotive on Code Search", CSM + "/+/main:hardware/interfaces/automotive/"],
     whatAaos: ["What is Android Automotive?", SA + "automotive/start/what_automotive"],
     aaos: ["Android Automotive overview", SA + "automotive"],
     terms: ["Automotive glossary", SA + "automotive/start/terms"],
@@ -247,6 +266,7 @@
     users: ["multiUser", "userHal", "userSystem", "accounts", "coreMultiUser", "seat", "carCfg"],
     code: ["vhalRef", "vhalIf", "ivehicleSrc", "vhalCfg", "vhalNative", "vhalDebug", "vhalEmu", "cpm", "propIds", "avd"],
     extensions: ["rro", "carCfg", "featureCtl", "audioPlugin", "userSystem", "carUi", "carUiPlugins", "carUiCustom", "sysUi", "stableAidl", "aidlHals", "vintf", "privPerms", "selinux"],
+    platform: ["csRoot", "csCar", "csCarApps", "csAutoHal", "aaos", "carCore", "boot", "vhal", "vintf", "featureCtl", "initReadme", "rro"],
     glossary: ["terms", "aaos", "arch"],
   };
 

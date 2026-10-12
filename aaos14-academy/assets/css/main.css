@@ -1631,3 +1631,36 @@ a.ao-cap:hover h4::after { opacity: 1; }
 .ls-ar.on .ls-al { fill: var(--dg-title); }
 .ls-svg .hd-pulse.live { fill: var(--dg-ipc); }
 @media (min-width: 1181px) { #ls-detail { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr); } }
+
+/* ---------------------------------------------------- AAOS Platform Deep Dive (Module 11) */
+.c-teal { color: var(--tone-ext); }
+.bt-phases { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; margin: 18px 0 10px; }
+.bt-phase {
+  position: relative; padding: 10px 12px 11px 16px; font-size: 0.78rem; line-height: 1.45; color: var(--text-2);
+  background: color-mix(in srgb, var(--tn) var(--tone-fill), var(--dg-card));
+  border: 1.4px solid color-mix(in srgb, var(--tn) var(--tone-edge), var(--dg-title)); border-left-width: 0;
+}
+.bt-phase:first-child { border-left-width: 1.4px; border-radius: 10px 0 0 10px; padding-left: 12px; }
+.bt-phase:last-child { border-radius: 0 10px 10px 0; }
+.bt-phase b { display: block; margin-bottom: 3px; font: 700 0.72rem var(--mono); letter-spacing: 0.03em; color: color-mix(in srgb, var(--tn) var(--tone-ink), var(--dg-title)); }
+.bt-phase code { font-size: 0.92em; }
+/* chevron joint between phases */
+.bt-phase:not(:last-child)::after {
+  content: ""; position: absolute; z-index: 1; top: 50%; right: -7px; width: 12px; height: 12px; margin-top: -6px; transform: rotate(45deg);
+  background: color-mix(in srgb, var(--tn) var(--tone-fill), var(--dg-card));
+  border: solid color-mix(in srgb, var(--tn) var(--tone-edge), var(--dg-title)); border-width: 1.4px 1.4px 0 0;
+}
+@media (max-width: 1100px) {
+  .bt-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .bt-phase, .bt-phase:first-child, .bt-phase:last-child { border-width: 1.4px; border-radius: 10px; padding-left: 12px; }
+  .bt-phase::after { display: none; }
+}
+.feat-table td:first-child { white-space: nowrap; }
+.feat-ic { display: inline-block; width: 1.6em; }
+.tq-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.tq { display: block; padding: 14px 16px; color: inherit; text-decoration: none; border-top: 3px solid var(--tn); transition: transform 0.18s, border-color 0.18s; }
+a.tq:hover { text-decoration: none; transform: translateY(-2px); border-color: var(--tn); }
+.tq b { display: block; margin-bottom: 5px; color: var(--text); font-size: 0.9rem; }
+.tq span { display: block; font-size: 0.8rem; line-height: 1.5; color: var(--muted); }
+@media (max-width: 1100px) { .tq-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .tq-grid { grid-template-columns: 1fr; } }
