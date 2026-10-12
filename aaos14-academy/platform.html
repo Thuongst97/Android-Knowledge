@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AAOS Platform Deep Dive — AAOS 14 Academy</title>
+  <meta name="description" content="Android Automotive OS inside AOSP: where it lives in the source tree, its features, the boot and init sequence from power-on to the launcher, the techniques it is built on and every OEM extension point.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css?v=__BUILD__">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="platform">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 11</span></nav>
+          <div class="eyebrow">Module 11 · Deep Dive</div>
+          <h1>AAOS Platform Deep Dive</h1>
+          <p class="lead">Everything that turns AOSP into Android Automotive OS, seen from the source tree: which directories hold it, which features it adds, how a car boots from power-on to the launcher, the techniques it is built on, and every place an OEM can extend it.</p>
+          <div class="page-meta"><span>⏱ 35 min read</span><span>🎯 Intermediate</span><span>📂 <a href="https://cs.android.com/android/platform/superproject/main" target="_blank" rel="noopener">cs.android.com · superproject/main</a></span></div>
+        </header>
+
+        <section class="doc-section" id="source-map" data-title="Where AAOS lives in the source tree">
+          <div class="sec-head"><h2><span class="sec-num">11.1</span>Where AAOS lives in the source tree</h2></div>
+          <p>AAOS is not a fork of Android. It is regular AOSP plus a set of <strong>car-specific projects</strong> that sit at every layer of the stack. Each box below is a directory of the AOSP superproject, placed in the layer where its code runs. Hover a box to trace what it talks to.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-source"></div></div>
+
+          <h3>Directory guide</h3>
+          <p class="small muted">Paths are relative to the AOSP root. Each link opens the directory on Android Code Search (<code>main</code> branch); release branches use the same layout.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Path</th><th>What it contains</th><th>Runs as / ships in</th></tr></thead>
+              <tbody id="src-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="features" data-title="Feature map">
+          <div class="sec-head"><h2><span class="sec-num">11.2</span>Feature map</h2></div>
+          <p>Each automotive feature follows the same pattern: an <strong>app-facing manager</strong> in car-lib, a <strong>service</strong> inside CarService that owns the policy, and a <strong>HAL or native daemon</strong> on the vendor side. Read a row left to right to see how far down a feature reaches.</p>
+          <div class="table-wrap">
+            <table class="t feat-table">
+              <thead><tr><th>Feature</th><th>App API (car-lib)</th><th>Inside CarService</th><th>HAL / native side</th><th>Learn more</th></tr></thead>
+              <tbody id="feat-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="boot" data-title="Boot & init sequence">
+          <div class="sec-head"><h2><span class="sec-num">11.3</span>Boot &amp; init sequence</h2></div>
+          <p>A car boots like any Android device up to <code>system_server</code>. The difference is what happens around it: the MCU decides when the SoC powers on, vehicle HALs start early, and once the framework is up, <strong>CarService</strong> takes over to negotiate power with the vehicle and pick the right driver profile.</p>
+
+          <div class="bt-phases" role="list" aria-label="Boot phases in order">
+            <div class="bt-phase tn-hw" role="listitem"><b>1 · Power-on</b><span>MCU wakes the SoC · bootloader · verified boot</span></div>
+            <div class="bt-phase tn-native" role="listitem"><b>2 · Kernel</b><span>drivers · mount root · exec <code>init</code></span></div>
+            <div class="bt-phase tn-native" role="listitem"><b>3 · init</b><span>SELinux · <code>*.rc</code> · servicemanagers</span></div>
+            <div class="bt-phase tn-hal" role="listitem"><b>4 · HALs &amp; daemons</b><span>VHAL · EVS · power policy · watchdog</span></div>
+            <div class="bt-phase tn-fw" role="listitem"><b>5 · system_server</b><span>Zygote · framework · car helper</span></div>
+            <div class="bt-phase tn-fw" role="listitem"><b>6 · CarService</b><span>ICarImpl · VHAL link · power ON</span></div>
+            <div class="bt-phase tn-app" role="listitem"><b>7 · User &amp; home</b><span>initial user · plug-ins · launcher</span></div>
+          </div>
+          <p class="small muted">Phases run in this order; how long each takes depends on the SoC, storage and how much is started early. A rear-view camera must appear within about 2 s of selecting reverse, which is why it is often served by EVS or the MCU/RTOS long before Android's UI exists.</p>
+
+          <h3>Step by step: from power-on to the launcher</h3>
+          <div id="boot-seq"></div>
+
+          <div class="callout tip">
+            <div class="ci">🔎</div>
+            <div><span class="ct">See it on a device</span>
+              <p><code>adb shell dumpsys car_service --list</code> lists every service ICarImpl created; <code>adb logcat -b events | grep boot_progress</code> prints the framework boot milestones with timestamps; <code>adb shell getprop | grep init.svc.</code> shows which init services are running.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="init-config" data-title="Init, VINTF & product configuration">
+          <div class="sec-head"><h2><span class="sec-num">11.4</span>Init, VINTF &amp; product configuration</h2></div>
+          <p>Four small files decide most of what the boot sequence above does on a given car. They are the first things to read when you bring up a new board.</p>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">① Product makefile</h4><p class="small">Inherits the car product, which declares <code>android.hardware.type.automotive</code>. That one feature flag is what makes <code>system_server</code> start the car stack at all.</p></div>
+            <div class="glass card"><h4 class="c-purple">② Init script (<code>.rc</code>)</h4><p class="small">Tells <code>init</code> how to start the vendor's Vehicle HAL: binary, user, groups and the class that decides <em>when</em> it starts.</p></div>
+            <div class="glass card"><h4 class="c-amber">③ VINTF manifest</h4><p class="small">Declares which HAL interfaces and versions the vendor provides, so the framework can find them across the Treble boundary.</p></div>
+            <div class="glass card"><h4 class="c-green">④ CarService overlay</h4><p class="small">An RRO on CarService's <code>config.xml</code>: early-start plug-ins, occupant zones, optional features — no CarService code changes.</p></div>
+          </div>
+          <div class="lang-switch mt">
+          <script type="text/plain" data-code data-lang="conf" data-file="device/<oem>/<board>/<product>.mk (abridged)" data-label="① Product">
+# Inherit the AAOS product: car services, car apps, car_core_hardware.xml
+# (which declares the android.hardware.type.automotive feature)
+$(call inherit-product, packages/services/Car/car_product/build/car.mk)
+
+# The OEM's Vehicle HAL and its init script / VINTF fragment
+PRODUCT_PACKAGES += android.hardware.automotive.vehicle-oem-service
+
+# Resource overlays (CarService config.xml, framework config, SystemUI)
+PRODUCT_PACKAGE_OVERLAYS += device/<oem>/<board>/overlay
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="/vendor/etc/init/vehicle-hal-oem.rc (example)" data-label="② Init .rc">
+# Started by init with the other HALs, before zygote and system_server
+service vendor.vehicle-hal-oem /vendor/bin/hw/android.hardware.automotive.vehicle-oem-service
+    class hal                  # start with the HAL class (some boards start it even earlier)
+    user vehicle_network       # dedicated UID; SELinux domain comes from file_contexts
+    group system inet          # inet for SOME/IP or vehicle Ethernet links
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="vehicle-hal-oem.xml (VINTF manifest fragment)" data-label="③ VINTF">
+<manifest version="1.0" type="device">
+    <hal format="aidl">
+        <name>android.hardware.automotive.vehicle</name>
+        <version>2</version>            <!-- the Stable AIDL version this HAL implements -->
+        <fqname>IVehicle/default</fqname>
+    </hal>
+</manifest>
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="overlay/packages/services/Car/service/res/values/config.xml" data-label="④ Overlay">
+<resources>
+    <!-- Started by CarService's VendorServiceController (see 10.4) -->
+    <string-array name="config_earlyStartupServices" translatable="false">
+        <item>com.oem.car.telemetry/.TelemetryService#bind=bind,user=system,trigger=asap</item>
+    </string-array>
+</resources>
+          </script>
+          </div>
+        </section>
+
+        <section class="doc-section" id="carservice" data-title="Inside CarService: builtin & updatable">
+          <div class="sec-head"><h2><span class="sec-num">11.5</span>Inside CarService: builtin &amp; updatable</h2></div>
+          <p>Since Android 13, CarService is split in two so Google can update it like a Mainline module. A small <strong>builtin</strong> part lives in <code>system_server</code> and has access to hidden framework APIs; the large <strong>updatable</strong> part ships in the <code>com.android.car.framework</code> APEX and runs in its own process.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-carservice-split"></div></div>
+          <div class="grid grid-2 mt">
+            <div class="glass card"><h4 class="c-green">Builtin (<code>service-builtin</code>)</h4><p class="small">Runs inside <code>system_server</code>. <code>CarServiceHelperService</code> starts CarService, forwards user lifecycle events and calls hidden framework APIs on CarService's behalf through <code>car-builtin-lib</code>. Changes only with a platform release.</p></div>
+            <div class="glass card"><h4 class="c-blue">Updatable (<code>service</code>)</h4><p class="small">Package <code>com.android.car.updatable</code> in the <code>com.android.car.framework</code> APEX. <code>CarServiceImpl</code> builds <code>ICarImpl</code>, which creates and initialises every car service. Can be updated without a full OTA.</p></div>
+          </div>
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">Rule of thumb</span>
+              <p>Because CarService is updatable, OEMs should <strong>not</strong> patch its code. Change its behaviour through overlays, plug-in services and <code>OemCarService</code> (Module 10) — otherwise every Google update of the module breaks your changes.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-section" id="techniques" data-title="Techniques AAOS is built on">
+          <div class="sec-head"><h2><span class="sec-num">11.6</span>Techniques AAOS is built on</h2></div>
+          <p>AAOS adds very little new machinery. It reuses Android platform techniques and applies them to a vehicle:</p>
+          <div class="tq-grid">
+            <a class="tq glass tn-treble" href="architecture.html#treble"><b>Treble · Stable AIDL · VINTF</b><span>Framework and vendor code are built and updated separately; only versioned AIDL interfaces cross between them.</span></a>
+            <a class="tq glass tn-app" href="fundamentals.html#binder"><b>Binder IPC</b><span>Every hop — app → CarService → VHAL — is a Binder call with the caller's UID, so permissions can be enforced at each step.</span></a>
+            <a class="tq glass tn-fw" href="#carservice"><b>Mainline module (APEX)</b><span>CarService ships in <code>com.android.car.framework</code> and can be updated independently of the platform.</span></a>
+            <a class="tq glass tn-fw" href="users.html#model"><b>Headless system user</b><span>User 0 runs system services but never a display; each occupant gets a real Android user started on top of it.</span></a>
+            <a class="tq glass tn-ext" href="extensions.html#overlays"><b>Runtime resource overlays</b><span>OEMs change configuration and theming of AOSP packages by overlaying resources instead of editing code.</span></a>
+            <a class="tq glass tn-native" href="security.html#sepolicy"><b>SELinux &amp; permissions</b><span>Car permissions gate every API; SELinux limits which processes may even open the VHAL.</span></a>
+            <a class="tq glass tn-hal" href="architecture.html#property-model"><b>Property model</b><span>Most vehicle data is one generic interface — typed, area-aware properties — instead of one HAL per feature.</span></a>
+            <a class="tq glass tn-app" href="displays.html#mumd"><b>Multi-user multi-display</b><span>Several users run concurrently, each visible on its own display with its own audio zone and input.</span></a>
+          </div>
+        </section>
+
+        <section class="doc-section" id="oem" data-title="OEM extension points">
+          <div class="sec-head"><h2><span class="sec-num">11.7</span>OEM extension points</h2></div>
+          <p>Where an OEM can change AAOS, layer by layer. <span class="c-teal">Teal</span> boxes are the extension points; the rest is the AOSP code they plug into. Pick the highest layer that can do the job: overlays and plug-ins survive platform and module updates, forks do not.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-oem"></div></div>
+          <div class="table-wrap mt">
+            <table class="t">
+              <thead><tr><th>Goal</th><th>Extension point</th><th>What you write</th><th>Details</th></tr></thead>
+              <tbody>
+                <tr><td>Brand the UI</td><td>RRO on CarSystemUI / CarLauncher, Car UI library tokens</td><td>Overlay APKs</td><td><a href="extensions.html#overlays">10.3</a></td></tr>
+                <tr><td>Configure CarService</td><td>Overlay on CarService <code>config.xml</code></td><td>Overlay resources</td><td><a href="extensions.html#overlays">10.3</a></td></tr>
+                <tr><td>Run OEM logic with CarService</td><td><code>config_earlyStartupServices</code></td><td>Privileged app service</td><td><a href="extensions.html#plugin-services">10.4</a></td></tr>
+                <tr><td>Change audio focus / volume policy</td><td><code>OemCarService</code> (Android 14)</td><td>Privileged app + policy components</td><td><a href="extensions.html#oem-car-service">10.5</a></td></tr>
+                <tr><td>New framework API for all apps</td><td>System service in <code>system_server</code></td><td>Framework code (platform change)</td><td><a href="extensions.html#system-service">10.6</a></td></tr>
+                <tr><td>Expose a new vehicle signal</td><td><code>VENDOR</code> property in the VHAL</td><td><code>IVehicleHardware</code> mapping</td><td><a href="code.html#checklist">9.3</a></td></tr>
+                <tr><td>New hardware capability</td><td>Vendor AIDL HAL + VINTF</td><td>Native service on <code>/vendor</code></td><td><a href="extensions.html#vendor-service">10.7</a></td></tr>
+                <tr><td>Audio zones, displays, power policies</td><td>Vendor XML configuration</td><td><code>car_audio_configuration.xml</code>, occupant zones, power policy XML</td><td><a href="audio.html#routing">5.4</a> · <a href="power.html#power-policy">4.5</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js?v=__BUILD__"></script>
+  <script src="assets/js/core.js?v=__BUILD__"></script>
+  <script src="assets/js/diagrams.js?v=__BUILD__"></script>
+  <script src="assets/js/pages/platform.js?v=__BUILD__"></script>
+</body>
+</html>
