@@ -222,4 +222,45 @@
       { from: "vaidl", to: "kdrv", kind: "hw" },
     ],
   });
+
+  /* ---------- 11.8 OEM system service by overlay ---------- */
+  SequenceDiagram($("#overlay-seq"), {
+    lanes: [
+      { title: "Build & overlay", sub: "device/oem/car", tone: "ext" },
+      { title: "SystemServer", sub: "startOtherServices()", tone: "fw" },
+      { title: "OemHelperService", sub: "in system_server", tone: "ext" },
+      { title: "ActivityManager", sub: "system_server", tone: "fw" },
+      { title: "OEM plug-in app", sub: "com.oem.car.plugin", tone: "app" },
+    ],
+    laneW: 190,
+    ariaLabel: "How an OEM helper service listed by overlay starts and binds the plug-in",
+    intro: "Follow an OEM helper from the build to a live binding with its plug-in — and what happens when the plug-in crashes. Press <b>Next ▶</b> or <kbd>→</kbd>.",
+    steps: [
+      { from: 0, to: 0, kind: "call", svg: "jar → SYSTEMSERVERCLASSPATH", label: "PRODUCT_SYSTEM_SERVER_JARS puts the helper jar on system_server's classpath", title: "Build: the helper jar joins system_server's classpath",
+        detail: "<p><code>PRODUCT_SYSTEM_SERVER_JARS += system_ext:oem-car-services</code> adds the jar to <code>SYSTEMSERVERCLASSPATH</code> (and dexpreopts it), so <code>system_server</code> can load <code>com.oem.server.car.OemHelperService</code> by name.</p>",
+        code: "PRODUCT_PACKAGES += oem-car-services OemCarPlugin\nPRODUCT_SYSTEM_SERVER_JARS += system_ext:oem-car-services", codeLang: "conf", codeFile: "oem_car.mk", tags: [["Build time", "gray"]] },
+      { from: 0, to: 1, kind: "call", svg: "config_deviceSpecificSystemServices", label: "The overlay adds the helper to config_deviceSpecificSystemServices", title: "Build: the overlay lists the helper",
+        detail: "<p>The device overlay is merged into framework-res at build time. At boot, <code>system_server</code> reads <code>config_deviceSpecificSystemServices</code> from its own resources — no AOSP file was edited.</p>",
+        code: "<string-array name=\"config_deviceSpecificSystemServices\" translatable=\"false\">\n    <item>com.oem.server.car.OemHelperService</item>\n</string-array>", codeLang: "xml", codeFile: "overlay/…/res/values/config.xml", tags: [["Build time", "gray"]] },
+      { from: 1, to: 1, kind: "call", svg: "StartDeviceSpecificServices", label: "startOtherServices() reaches the device-specific services step", title: "Boot: system_server starts device-specific services",
+        detail: "<p>Late in <code>startOtherServices()</code>, <code>SystemServer</code> loops over the array and starts each class. A failure is reported with <code>wtf</code> and boot continues.</p>",
+        code: "// SystemServer.startOtherServices() — abridged\nfinal String[] classes = mSystemContext.getResources()\n        .getStringArray(R.array.config_deviceSpecificSystemServices);\nfor (String className : classes) {\n    try {\n        mSystemServiceManager.startService(className);\n    } catch (Throwable e) {\n        reportWtf(\"starting \" + className, e);\n    }\n}", codeLang: "java", codeFile: "SystemServer.java" },
+      { from: 1, to: 2, kind: "call", svg: "startService(className) → onStart()", label: "SystemServiceManager loads the class, constructs it, calls onStart()", title: "The helper is created",
+        detail: "<p><code>startService(String)</code> loads the class from the classpath, calls the <code>(Context)</code> constructor by reflection and then <code>onStart()</code>. From now on the helper gets every boot phase and user lifecycle callback, like any built-in system service.</p>" },
+      { from: 1, to: 2, kind: "call", svg: "onBootPhase(THIRD_PARTY_APPS_CAN_START)", label: "Boot phases: … → PHASE_THIRD_PARTY_APPS_CAN_START", title: "Waiting for the right boot phase",
+        detail: "<p>Binding an app too early fails: packages are not scanned and ActivityManager cannot start processes yet. <code>PHASE_THIRD_PARTY_APPS_CAN_START</code> is the first phase where binding to the plug-in APK is safe; <code>PHASE_BOOT_COMPLETED</code> comes later.</p>" },
+      { from: 2, to: 3, kind: "ipc", svg: "bindServiceAsUser(PLUGIN, SYSTEM)", label: "bindServiceAsUser(…, BIND_AUTO_CREATE | BIND_IMPORTANT, UserHandle.SYSTEM)", title: "The helper binds the plug-in",
+        detail: "<p>The helper binds the plug-in as user 0 (the headless system user), so it runs for the whole life of the system and not per driver profile. <code>BIND_IMPORTANT</code> keeps the plug-in at a high priority.</p>" },
+      { from: 3, to: 4, kind: "ipc", svg: "start process · onCreate() · onBind()", label: "AMS starts the plug-in process and calls onBind()", title: "The plug-in process starts",
+        detail: "<p>ActivityManager checks the service's <code>BIND_OEM_PLUGIN</code> permission (system_server holds it), forks the plug-in process from Zygote and calls <code>onCreate()</code> then <code>onBind()</code>.</p>", tags: [["Own process", "blue"]] },
+      { from: 4, to: 2, kind: "ret", svg: "onServiceConnected(IOemPlugin)", label: "The binder comes back: onServiceConnected()", title: "Connected",
+        detail: "<p>The helper wraps the binder with <code>IOemPlugin.Stub.asInterface()</code>. The plug-in now runs the OEM logic in its own process.</p>" },
+      { from: 2, to: 4, kind: "ipc", svg: "onUserSwitched(11) — oneway", label: "Forward system events to the plug-in (oneway)", title: "Forwarding system events",
+        detail: "<p>When the user switches, the helper's <code>onUserSwitching()</code> forwards it with a <code>oneway</code> call, so <code>system_server</code> never waits for the plug-in.</p>" },
+      { from: 3, to: 2, kind: "ret", svg: "plug-in died → onServiceDisconnected", label: "If the plug-in crashes: onServiceDisconnected(); AMS restarts and re-binds", title: "Crash isolation",
+        detail: "<p>A crash in the plug-in kills only its process. The helper gets <code>onServiceDisconnected()</code>; because the binding uses <code>BIND_AUTO_CREATE</code>, ActivityManager restarts the plug-in and delivers <code>onServiceConnected()</code> again. The framework keeps running.</p>", tags: [["Resilience", "amber"]] },
+      { from: 2, to: 3, kind: "ipc", svg: "onBindingDied → unbind · re-bind", label: "If the binding itself dies (e.g. APK update): unbind, then bind again", title: "When the binding is dead for good",
+        detail: "<p><code>onBindingDied()</code> means this binding will never reconnect — typically after the plug-in APK was updated. The helper unbinds and binds again after a short back-off.</p>" },
+    ],
+  });
 })();

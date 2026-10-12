@@ -170,10 +170,218 @@ service vendor.vehicle-hal-oem /vendor/bin/hw/android.hardware.automotive.vehicl
                 <tr><td>Configure CarService</td><td>Overlay on CarService <code>config.xml</code></td><td>Overlay resources</td><td><a href="extensions.html#overlays">10.3</a></td></tr>
                 <tr><td>Run OEM logic with CarService</td><td><code>config_earlyStartupServices</code></td><td>Privileged app service</td><td><a href="extensions.html#plugin-services">10.4</a></td></tr>
                 <tr><td>Change audio focus / volume policy</td><td><code>OemCarService</code> (Android 14)</td><td>Privileged app + policy components</td><td><a href="extensions.html#oem-car-service">10.5</a></td></tr>
+                <tr><td>Run an OEM service with system_server, no AOSP edits</td><td>Helper in <code>config_deviceSpecificSystemServices</code> + plug-in APK</td><td>Helper jar, overlay, privileged app</td><td><a href="#overlay-service">11.8</a></td></tr>
                 <tr><td>New framework API for all apps</td><td>System service in <code>system_server</code></td><td>Framework code (platform change)</td><td><a href="extensions.html#system-service">10.6</a></td></tr>
                 <tr><td>Expose a new vehicle signal</td><td><code>VENDOR</code> property in the VHAL</td><td><code>IVehicleHardware</code> mapping</td><td><a href="code.html#checklist">9.3</a></td></tr>
                 <tr><td>New hardware capability</td><td>Vendor AIDL HAL + VINTF</td><td>Native service on <code>/vendor</code></td><td><a href="extensions.html#vendor-service">10.7</a></td></tr>
                 <tr><td>Audio zones, displays, power policies</td><td>Vendor XML configuration</td><td><code>car_audio_configuration.xml</code>, occupant zones, power policy XML</td><td><a href="audio.html#routing">5.4</a> · <a href="power.html#power-policy">4.5</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="overlay-service" data-title="Adding an OEM system service by overlay">
+          <div class="sec-head"><h2><span class="sec-num">11.8</span>Adding an OEM system service by overlay (no AOSP changes)</h2></div>
+          <p>Most OEMs do not edit <code>SystemServer.java</code> to add their own system service. They use a hook AOSP already has: <code>system_server</code> reads a string array, <code>config_deviceSpecificSystemServices</code>, from framework resources and starts every class listed in it. The OEM ships a small <strong>helper</strong> class (<code>extends SystemService</code>) in its own jar, lists it through a resource overlay, and the helper <strong>binds the OEM's plug-in service</strong>, an ordinary privileged APK, once apps can start. Everything lives in the device tree; AOSP stays untouched.</p>
+
+          <div class="grid grid-3 mt">
+            <div class="glass card"><h4 class="c-teal">① Helper jar</h4><p class="small"><code>OemHelperService extends SystemService</code>. Runs inside <code>system_server</code>, receives boot phases and user lifecycle events, and owns the binding to the plug-in. Keep it thin.</p></div>
+            <div class="glass card"><h4 class="c-teal">② Overlay</h4><p class="small">A framework-res overlay that adds the helper's class name to <code>config_deviceSpecificSystemServices</code>. That one line is what makes <code>system_server</code> start it.</p></div>
+            <div class="glass card"><h4 class="c-teal">③ Plug-in APK</h4><p class="small">A privileged app with a bound <code>Service</code>. It holds the real OEM logic in its own process, so a bug there restarts the plug-in — not the whole framework.</p></div>
+          </div>
+
+          <h3>How it starts: step by step</h3>
+          <div id="overlay-seq"></div>
+
+          <h3>What you add</h3>
+          <ol class="steps-list">
+            <li><b>Share an AIDL interface</b>Define <code>IOemPlugin.aidl</code> in a small library that both the helper jar and the plug-in APK link statically.</li>
+            <li><b>Write the helper</b>Extend <code>com.android.server.SystemService</code>; bind the plug-in in <code>onBootPhase(PHASE_THIRD_PARTY_APPS_CAN_START)</code> and forward the lifecycle events you need.</li>
+            <li><b>Put the jar on the system_server classpath</b>Build it as a <code>java_library</code> and add it to <code>PRODUCT_SYSTEM_SERVER_JARS</code>. Without this, <code>startService(className)</code> fails with <code>ClassNotFoundException</code>.</li>
+            <li><b>Overlay <code>config_deviceSpecificSystemServices</code></b>Use a build-time product/device overlay of framework-res. <code>system_server</code> reads the value very early, so a runtime-enabled RRO is too late.</li>
+            <li><b>Ship the plug-in APK</b>Privileged app on <code>/system_ext</code> or <code>/product</code>, <code>directBootAware</code>, with its service protected by a <code>signature</code> permission and its privileged permissions allowlisted.</li>
+            <li><b>Only if you publish a binder</b>If the helper calls <code>publishBinderService()</code> for other clients, add a <code>service_contexts</code> label and SELinux rules for the callers.</li>
+          </ol>
+
+          <div class="lang-switch">
+          <script type="text/plain" data-code data-lang="java" data-file="device/oem/car/services/src/com/oem/server/car/OemHelperService.java" data-label="Helper (Java)">
+package com.oem.server.car;
+
+/** Started by system_server via config_deviceSpecificSystemServices. Runs in system_server: keep it small. */
+public final class OemHelperService extends SystemService {
+    private static final String TAG = "OemHelperService";
+    private static final ComponentName PLUGIN =
+            new ComponentName("com.oem.car.plugin", "com.oem.car.plugin.OemPluginService");
+    private static final long REBIND_DELAY_MS = 3_000;
+
+    private final Handler mHandler = BackgroundThread.getHandler();   // never block the caller's thread
+    private volatile IOemPlugin mPlugin;
+
+    private final ServiceConnection mConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder binder) {
+            mPlugin = IOemPlugin.Stub.asInterface(binder);
+            Slog.i(TAG, "plug-in connected");
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            mPlugin = null;               // plug-in process died; Android re-binds when it restarts
+        }
+
+        @Override
+        public void onBindingDied(ComponentName name) {
+            // The binding is dead for good (e.g. the APK was updated): drop it and bind again later
+            getContext().unbindService(this);
+            mHandler.postDelayed(OemHelperService.this::bindPlugin, REBIND_DELAY_MS);
+        }
+    };
+
+    public OemHelperService(Context context) {
+        super(context);                   // system_server calls this constructor by reflection
+    }
+
+    @Override
+    public void onStart() {
+        // Nothing to publish in this example. To expose an API to other processes:
+        // publishBinderService("oem_helper", mBinder);   // needs a service_contexts entry
+    }
+
+    @Override
+    public void onBootPhase(int phase) {
+        if (phase == PHASE_THIRD_PARTY_APPS_CAN_START) {
+            bindPlugin();                 // packages are scanned and apps may be started now
+        }
+    }
+
+    @Override
+    public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
+        IOemPlugin plugin = mPlugin;
+        if (plugin == null) return;
+        try {
+            plugin.onUserSwitched(to.getUserIdentifier());   // oneway: never wait on the plug-in
+        } catch (RemoteException e) {
+            Slog.w(TAG, "plug-in unreachable", e);
+        }
+    }
+
+    private void bindPlugin() {
+        Intent intent = new Intent().setComponent(PLUGIN);
+        boolean bound = getContext().bindServiceAsUser(intent, mConnection,
+                Context.BIND_AUTO_CREATE | Context.BIND_IMPORTANT, UserHandle.SYSTEM);
+        if (!bound) Slog.wtf(TAG, "cannot bind " + PLUGIN);
+    }
+}
+          </script>
+          <script type="text/plain" data-code data-lang="kotlin" data-file="device/oem/car/plugin/src/com/oem/car/plugin/OemPluginService.kt" data-label="Plug-in (Kotlin)">
+package com.oem.car.plugin
+
+/** The real OEM logic. Runs in its own app process, bound by OemHelperService as user 0. */
+class OemPluginService : Service() {
+
+    private val binder = object : IOemPlugin.Stub() {
+        override fun onUserSwitched(userId: Int) {
+            // e.g. load the driver's profile, tell the ECUs, refresh cached state
+            ProfileSync.onUserSwitched(this@OemPluginService, userId)
+        }
+    }
+
+    override fun onBind(intent: Intent): IBinder = binder
+}
+          </script>
+          <script type="text/plain" data-code data-lang="aidl" data-file="device/oem/car/plugin-aidl/com/oem/car/plugin/IOemPlugin.aidl" data-label="AIDL">
+package com.oem.car.plugin;
+
+/** Implemented by the plug-in APK, called by OemHelperService in system_server. */
+oneway interface IOemPlugin {
+    void onUserSwitched(int userId);
+}
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="device/oem/car/services/Android.bp" data-label="Android.bp">
+// Shared by the helper jar and the plug-in APK
+java_library {
+    name: "oem-plugin-aidl",
+    srcs: ["../plugin-aidl/**/*.aidl"],
+    sdk_version: "system_current",
+}
+
+// The helper: loaded into system_server
+java_library {
+    name: "oem-car-services",
+    srcs: ["src/**/*.java"],
+    static_libs: ["oem-plugin-aidl"],
+    libs: ["services"],            // compile against system_server classes (SystemService); not packaged
+    installable: true,
+    system_ext_specific: true,
+}
+
+// The plug-in: a privileged app
+android_app {
+    name: "OemCarPlugin",
+    srcs: ["../plugin/src/**/*.kt"],
+    static_libs: ["oem-plugin-aidl"],
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    platform_apis: true,
+}
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="device/oem/car/oem_car.mk" data-label="Product .mk">
+PRODUCT_PACKAGES += oem-car-services OemCarPlugin
+
+# Put the helper on system_server's classpath (partition:module)
+PRODUCT_SYSTEM_SERVER_JARS += system_ext:oem-car-services
+
+# Build-time overlay of framework-res (and anything else under overlay/)
+PRODUCT_PACKAGE_OVERLAYS += device/oem/car/overlay
+
+# Allowlist the plug-in's privileged permissions
+PRODUCT_COPY_FILES += \
+    device/oem/car/privapp-permissions-oemcarplugin.xml:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/permissions/privapp-permissions-oemcarplugin.xml
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="device/oem/car/overlay/frameworks/base/core/res/res/values/config.xml" data-label="Overlay">
+<resources>
+    <!-- system_server starts each class with SystemServiceManager.startService(className) -->
+    <string-array name="config_deviceSpecificSystemServices" translatable="false">
+        <item>com.oem.server.car.OemHelperService</item>
+    </string-array>
+</resources>
+          </script>
+          <script type="text/plain" data-code data-lang="xml" data-file="device/oem/car/plugin/AndroidManifest.xml" data-label="Plug-in manifest">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.oem.car.plugin">
+
+    <!-- Only callers holding this signature permission (system_server does) may bind -->
+    <permission android:name="com.oem.car.permission.BIND_OEM_PLUGIN"
+                android:protectionLevel="signature" />
+
+    <application android:directBootAware="true">   <!-- bound before the user is unlocked -->
+        <service android:name=".OemPluginService"
+                 android:exported="true"
+                 android:permission="com.oem.car.permission.BIND_OEM_PLUGIN" />
+    </application>
+</manifest>
+          </script>
+          </div>
+
+          <div class="callout warn">
+            <div class="ci">⚠️</div>
+            <div><span class="ct">The helper runs inside system_server</span>
+              <p>An uncaught exception or a blocking call in <code>OemHelperService</code> restarts the whole framework. Keep it to binding and forwarding; catch <code>RemoteException</code>; make plug-in calls <code>oneway</code>; never wait on the plug-in from a system_server thread. Because the jar compiles against <code>services</code> (hidden classes), rebuild and re-test it with every platform release.</p>
+            </div>
+          </div>
+
+          <h3>Which route should I take?</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th></th><th>Overlay helper (this section)</th><th>CarService plug-in (<a href="extensions.html#plugin-services">10.4</a>)</th><th>Fork SystemServer (<a href="extensions.html#system-service">10.6</a>)</th></tr></thead>
+              <tbody>
+                <tr><td>AOSP changes</td><td class="yes">None — device tree only</td><td class="yes">None — overlay only</td><td class="no">Edits <code>frameworks/base</code></td></tr>
+                <tr><td>Starts</td><td>With <code>system_server</code>, before CarService</td><td>When CarService is up, per trigger</td><td>Any phase you choose</td></tr>
+                <tr><td>Gets boot phases &amp; user lifecycle</td><td class="yes">Yes (<code>SystemService</code> callbacks)</td><td>Through triggers and CarService events</td><td class="yes">Yes</td></tr>
+                <tr><td>Code in system_server</td><td>Thin helper only</td><td class="yes">None</td><td>Whole service</td></tr>
+                <tr><td>Survives platform updates</td><td>Rebuild the jar per release</td><td class="yes">Yes</td><td class="no">Rebase every release</td></tr>
+                <tr><td>Best for</td><td>OEM services that must start with the framework or react to system events early</td><td>Most OEM car features</td><td>New platform APIs used by many system components</td></tr>
               </tbody>
             </table>
           </div>

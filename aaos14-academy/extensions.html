@@ -362,7 +362,7 @@ public class OemPolicyService extends OemCarService {
           <ol class="steps-list">
             <li><b>Define the AIDL interface</b>Place it in the framework (e.g. <code>frameworks/base/core/java/android/oem/IOemDiagnostics.aidl</code>) so both the service and the client manager can use it.</li>
             <li><b>Implement the service</b>Extend <code>com.android.server.SystemService</code>, publish the binder in <code>onStart()</code> and enforce permissions on every call.</li>
-            <li><b>Start it from SystemServer</b>Add a <code>startService()</code> call in the appropriate phase of <code>SystemServer.java</code> (usually <code>startOtherServices()</code>).</li>
+            <li><b>Start it from SystemServer</b>Add a <code>startService()</code> call in the appropriate phase of <code>SystemServer.java</code> (usually <code>startOtherServices()</code>) — or, without editing <code>SystemServer.java</code>, list the class in <code>config_deviceSpecificSystemServices</code> (see <a href="platform.html#overlay-service">11.8</a>).</li>
             <li><b>Expose a manager</b>Write <code>OemDiagnosticsManager</code> and register it in <code>SystemServiceRegistry</code> so clients use <code>context.getSystemService(OemDiagnosticsManager::class.java)</code>. Keep it <code>@hide</code> or <code>@SystemApi</code> — never public SDK.</li>
             <li><b>Label it in SELinux</b>Declare a service type, add it to <code>service_contexts</code> and allow only the domains that should find it.</li>
             <li><b>Define the permission</b>Add a <code>signature|privileged</code> permission (e.g. in an OEM framework-resource package) and allowlist the OEM apps that hold it.</li>
