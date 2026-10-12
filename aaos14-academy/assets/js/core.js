@@ -148,6 +148,7 @@
         ["carservice", "Inside CarService: builtin & updatable", "builtin updatable apex com.android.car.framework carserviceimpl icarimpl car-builtin-lib"],
         ["techniques", "Techniques AAOS is built on", "treble binder apex headless system user rro selinux mumd"],
         ["oem", "OEM extension points", "oem extension rro plugin oemcarservice vendor property vendor hal"],
+        ["overlay-service", "Adding an OEM system service by overlay", "config_deviceSpecificSystemServices systemservice helper plugin bindserviceasuser product_system_server_jars overlay system_server"],
       ],
     },
     {
