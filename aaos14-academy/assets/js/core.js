@@ -152,6 +152,36 @@
       ],
     },
     {
+      id: "services", file: "services.html", num: "12", group: "Framework",
+      title: "Android Framework Services", short: "Framework Services", icon: "🏛️", accent: "#70cff8",
+      desc: "Inside system_server: ActivityManager, PackageManager, WindowManager, Input and Power services — features, step-by-step flows and dumpsys commands.",
+      sections: [
+        ["system-server", "system_server & how a framework service works", "system_server systemservice systemservicemanager boot phase publishbinderservice localservices servicemanager getsystemservice watchdog"],
+        ["ams", "ActivityManagerService (AMS & ATMS)", "ams atms activitymanagerservice activitytaskmanagerservice process oom_adj activityrecord task cold start zygote am start dumpsys activity"],
+        ["pms", "PackageManagerService (PMS)", "pms packagemanagerservice install packages.xml uid intent resolution package visibility queries pm install dumpsys package"],
+        ["wms", "WindowManagerService (WMS)", "wms windowmanagerservice windowstate windowtoken surfacecontrol focus z-order addwindow relayout dumpsys window windows wm size"],
+        ["input", "InputManagerService", "input inputmanagerservice inputreader inputdispatcher eventhub inputchannel anr getevent input tap dumpsys input"],
+        ["power", "PowerManagerService", "power powermanagerservice wake lock wakefulness suspend blocker systemsuspend screen timeout dumpsys power"],
+        ["more-services", "Other framework services", "displaymanager audioservice alarm jobscheduler notification connectivity location appops surfaceflinger"],
+        ["dumpsys", "dumpsys, cmd & debugging toolkit", "dumpsys cmd am pm wm service list bugreport dump shellcommand"],
+      ],
+    },
+    {
+      id: "expose-apis", file: "expose-apis.html", num: "13", group: "Framework",
+      title: "Exposing APIs with Intents & AIDL", short: "Exposing APIs: Intent & AIDL", icon: "🔌", accent: "#f472b6",
+      desc: "Step by step: Service_A exposes an Intent API to App_B and an AIDL API to Service_C — contract, manifests, code, sequence diagrams, security and adb tests.",
+      sections: [
+        ["scenario", "The scenario & choosing a mechanism", "intent aidl messenger bound service compare choose contract"],
+        ["intent-server", "Intent API, part 1: Service_A side", "intent api broadcastreceiver exported permission protectionlevel signature goasync pendingintent reply sendbroadcast"],
+        ["intent-client", "Intent API, part 2: App_B as client", "queries package visibility explicit intent setpackage pendingintent flag_mutable registerreceiver receiver_exported am broadcast"],
+        ["aidl-contract", "AIDL API, part 1: define & build the interface", "aidl interface parcelable oneway structured parcelable aidl_interface gradle buildfeatures versioning transaction code"],
+        ["aidl-server", "AIDL API, part 2: implement it in Service_A", "stub onbind binder thread enforcecallingpermission getcallinguid remotecallbacklist dump"],
+        ["aidl-client", "AIDL API, part 3: Service_C as client", "bindservice serviceconnection asinterface onservicedisconnected onbindingdied onnullbinding deadobjectexception bind_auto_create"],
+        ["api-checklist", "Security & robustness checklist", "security exported permission validate transactiontoolarge versioning multi-user"],
+        ["system-variant", "Variant: Service_A as a system service", "servicemanager system service service call service_contexts"],
+      ],
+    },
+    {
       id: "glossary", file: "glossary.html", num: "A", group: "Reference",
       title: "Glossary", short: "Glossary", icon: "📖", accent: "#94a3b8",
       desc: "Quick reference for AAOS, AOSP and automotive terms.",
@@ -255,6 +285,26 @@
     initReadme: ["init language README (android14-release source)", GS + "system/core/+/refs/heads/android14-release/init/README.md"],
     libbinderSrc: ["libbinder source (android14-release)", GS + "frameworks/native/+/refs/heads/android14-release/libs/binder/"],
     looperSrc: ["Looper.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/core/java/android/os/Looper.java"],
+    systemServerSrc: ["SystemServer.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/java/com/android/server/SystemServer.java"],
+    amsSrc: ["ActivityManagerService.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/am/ActivityManagerService.java"],
+    atmsSrc: ["ActivityTaskManagerService.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/wm/ActivityTaskManagerService.java"],
+    pmsSrc: ["PackageManagerService.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/pm/PackageManagerService.java"],
+    wmsSrc: ["WindowManagerService.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/wm/WindowManagerService.java"],
+    pwrSrc: ["PowerManagerService.java source (android14-release)", GS + "frameworks/base/+/refs/heads/android14-release/services/core/java/com/android/server/power/PowerManagerService.java"],
+    inputSrc: ["InputReader & InputDispatcher source (android14-release)", GS + "frameworks/native/+/refs/heads/android14-release/services/inputflinger/"],
+    inputDocs: ["Input (platform documentation)", SA + "core/interaction/input"],
+    dumpsys: ["dumpsys", DEV + "tools/dumpsys"],
+    adbShell: ["Android Debug Bridge (adb) — am, pm and shell commands", DEV + "tools/adb"],
+    appStartup: ["App startup time", DEV + "topic/performance/vitals/launch-time"],
+    pkgVisibility: ["Package visibility filtering", DEV + "training/package-visibility"],
+    intents: ["Intents and intent filters", DEV + "guide/components/intents-filters"],
+    broadcasts: ["Broadcasts overview", DEV + "guide/components/broadcasts"],
+    pendingIntentRef: ["PendingIntent API reference", DEV + "reference/android/app/PendingIntent"],
+    definePerms: ["Define a custom app permission", DEV + "guide/topics/permissions/defining"],
+    bgLimits: ["Background execution limits (Android 8)", DEV + "about/versions/oreo/background"],
+    aidlLang: ["AIDL language", SA + "core/architecture/aidl/aidl-language"],
+    rclRef: ["RemoteCallbackList API reference", DEV + "reference/android/os/RemoteCallbackList"],
+    svcConnRef: ["ServiceConnection API reference", DEV + "reference/android/content/ServiceConnection"],
   };
   const REFS = {
     foundations: ["whatAaos", "aaos", "virt", "isolation", "devCars", "carApps", "terms"],
@@ -268,6 +318,8 @@
     code: ["vhalRef", "vhalIf", "ivehicleSrc", "vhalCfg", "vhalNative", "vhalDebug", "vhalEmu", "cpm", "propIds", "avd"],
     extensions: ["rro", "carCfg", "featureCtl", "audioPlugin", "userSystem", "carUi", "carUiPlugins", "carUiCustom", "sysUi", "stableAidl", "aidlHals", "vintf", "privPerms", "selinux"],
     platform: ["csRoot", "csCar", "csCarApps", "csAutoHal", "aaos", "carCore", "boot", "vhal", "vintf", "featureCtl", "initReadme", "rro"],
+    services: ["systemServerSrc", "amsSrc", "atmsSrc", "pmsSrc", "wmsSrc", "inputSrc", "pwrSrc", "inputDocs", "dumpsys", "adbShell", "appStartup", "pkgVisibility", "binder", "lmkd"],
+    "expose-apis": ["intents", "broadcasts", "pendingIntentRef", "pkgVisibility", "definePerms", "bgLimits", "aidlGuide", "aidlLang", "stableAidl", "boundSvc", "rclRef", "svcConnRef", "binderRef", "adbShell"],
     glossary: ["terms", "aaos", "arch"],
   };
 
@@ -794,17 +846,18 @@
       const k = self ? "self" : s.kind || "call";
       const colorKind = self ? (s.kind && s.kind !== "call" ? s.kind : "self") : k;
       svg += `<g class="seq-msg k-${colorKind}${k === "ret" ? " ret" : ""}" data-step="${i}">`;
+      const flip = self && s.from === lanes.length - 1; // last lane: loop and label go left so they stay inside the SVG
       if (self) {
         const x = lx(s.from);
-        svg += `<path class="seq-line" d="M${x},${y - 6} h34 v18 h-30" marker-end="url(#${host.id}-ah-self)"/>`;
-        svg += `<text class="seq-label" x="${x + 40}" y="${y + 6}">${esc(s.svg || s.label)}</text>`;
+        svg += `<path class="seq-line" d="M${x},${y - 6} h${flip ? -34 : 34} v18 h${flip ? 30 : -30}" marker-end="url(#${host.id}-ah-self)"/>`;
+        svg += `<text class="seq-label" x="${flip ? x - 40 : x + 40}" y="${y + 6}"${flip ? ' text-anchor="end"' : ""}>${esc(s.svg || s.label)}</text>`;
       } else {
         const x1 = lx(s.from), x2 = lx(s.to);
         const dir = x2 > x1 ? 1 : -1;
         svg += `<line class="seq-line" x1="${x1 + dir * 4}" y1="${y}" x2="${x2 - dir * 4}" y2="${y}" marker-end="url(#${host.id}-ah-${k})"/>`;
         svg += `<text class="seq-label" x="${(x1 + x2) / 2}" y="${y - 7}" text-anchor="middle">${esc(s.svg || s.label)}</text>`;
       }
-      const ix = Math.max(12, lx(Math.min(s.from, s.to)) - 26);
+      const ix = flip ? lx(s.from) + 26 : Math.max(12, lx(Math.min(s.from, s.to)) - 26);
       svg += `<circle class="seq-idx-bg" cx="${ix}" cy="${y}" r="10"/><text class="seq-idx" x="${ix}" y="${y + 3.5}" text-anchor="middle">${i + 1}</text>`;
       svg += `</g>`;
     });

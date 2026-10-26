@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exposing APIs with Intents & AIDL — AAOS 14 Academy</title>
+  <meta name="description" content="Step-by-step guide to exposing a service's API to other apps and services: an Intent API (request/reply broadcasts, events, activities) for App_B and an AIDL bound-service API for Service_C, with manifests, code, sequence diagrams, security rules and adb test commands.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css?v=__BUILD__">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="expose-apis">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 13</span></nav>
+          <div class="eyebrow">Module 13 · Framework · Hands-on</div>
+          <h1>Exposing APIs with Intents &amp; AIDL</h1>
+          <p class="lead">One service, two kinds of clients. <strong>Service_A</strong> owns trip data. It offers a loose, <strong>Intent-based API</strong> to <strong>App_B</strong> (an ordinary app) and a typed, fast <strong>AIDL API</strong> to <strong>Service_C</strong> (a background service in another app). This module builds both step by step: contract, manifests, server code, client code, what happens inside the framework, and how to test each piece with <code>adb</code>.</p>
+          <div class="page-meta"><span>⏱ 40 min read</span><span>🎯 Intermediate</span><span>📂 <a href="https://developer.android.com/guide/components/aidl" target="_blank" rel="noopener">developer.android.com · AIDL</a></span></div>
+        </header>
+
+        <!-- ======================================================= 13.1 -->
+        <section class="doc-section" id="scenario" data-title="The scenario & choosing a mechanism">
+          <div class="sec-head"><h2><span class="sec-num">13.1</span>The scenario &amp; choosing a mechanism</h2></div>
+          <p>All three components live in <strong>different apps</strong>, so every call crosses a process boundary through Binder. The difference is who is in the middle: an Intent always goes <em>through</em> ActivityManagerService, which resolves, checks and delivers it; an AIDL call goes <em>directly</em> from the client to the service once AMS has handed over the binder. Hover a box to trace its connections.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-expose"></div></div>
+
+          <div class="table-wrap mt">
+            <table class="t">
+              <thead><tr><th>Package</th><th>Role</th><th>Talks through</th></tr></thead>
+              <tbody>
+                <tr><td><code>com.example.servicea</code></td><td><b>Service_A</b> — owns trips; exposes <code>ApiReceiver</code>, <code>TripActivity</code> and the bound <code>TripApiService</code></td><td>—</td></tr>
+                <tr><td><code>com.example.appb</code></td><td><b>App_B</b> — UI app that asks for a trip summary, listens for "trip ended", opens Service_A's trip screen</td><td>Intents (<a href="#intent-server">13.2</a>, <a href="#intent-client">13.3</a>)</td></tr>
+                <tr><td><code>com.example.servicec</code></td><td><b>Service_C</b> — background <code>FleetSyncService</code> that queries trips and gets a callback on every update</td><td>AIDL (<a href="#aidl-contract">13.4</a>–<a href="#aidl-client">13.6</a>)</td></tr>
+                <tr><td><code>trip-api</code> (library)</td><td>The <strong>contract</strong>: action/extra constants and the <code>.aidl</code> files, shared by all three</td><td>Compile-time dependency</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Which mechanism for which client?</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th></th><th>Intent (broadcast / activity)</th><th>Messenger</th><th>AIDL bound service</th></tr></thead>
+              <tbody>
+                <tr><td>Shape</td><td>Fire a message; optional reply via <code>PendingIntent</code></td><td>Messages to one Handler</td><td>Typed methods, return values, callbacks</td></tr>
+                <tr><td>Connection</td><td>None — AMS starts the receiver's process if needed</td><td>Bound</td><td>Bound; client is told when the server dies</td></tr>
+                <tr><td>Latency</td><td>Tens of ms (queued by AMS)</td><td>Low</td><td>Lowest — one Binder transaction per call</td></tr>
+                <tr><td>Typing &amp; versioning</td><td>Strings and extras — loose, easy to extend</td><td>Bundles</td><td>Compiled interface — strict, append-only</td></tr>
+                <tr><td>Threading on the server</td><td>Main thread (<code>onReceive</code>)</td><td>One thread, serialised</td><td>Binder thread pool — must be thread-safe</td></tr>
+                <tr><td>Best for</td><td class="yes">Occasional commands, UI hand-off, events to many apps — <b>App_B</b></td><td>Simple, serial requests</td><td class="yes">Frequent calls, streams of callbacks, service-to-service — <b>Service_C</b></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="ci">📜</div>
+            <div><span class="ct">An API is a contract</span>
+              <p>Whatever the mechanism, write down four things before any code: <strong>names</strong> (actions, extras, interface), <strong>types</strong> and which fields are optional, <strong>who may call</strong> (a permission), and <strong>how it evolves</strong> (version number, append-only). Put the names in a small library both sides compile against — typos in action strings fail silently.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 13.2 -->
+        <section class="doc-section" id="intent-server" data-title="Intent API, part 1: Service_A side">
+          <div class="sec-head"><h2><span class="sec-num">13.2</span>Intent API, part 1: exposing it from Service_A</h2></div>
+          <p>Service_A offers three Intent entry points. Each is a different Android component because each needs a different delivery guarantee:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Entry point</th><th>Component</th><th>Inputs</th><th>Output</th><th>Who may use it</th></tr></thead>
+              <tbody>
+                <tr><td><code>…action.REQUEST_TRIP_SUMMARY</code></td><td>Exported <code>BroadcastReceiver</code> (explicit broadcast)</td><td><code>EXTRA_TRIP_ID</code> (long, required) · <code>EXTRA_REPLY</code> (<code>PendingIntent</code>, optional)</td><td>Reply Intent with <code>EXTRA_STATUS</code>, <code>EXTRA_DISTANCE_M</code>, <code>EXTRA_DURATION_S</code></td><td>Sender holds <code>READ_TRIPS</code></td></tr>
+                <tr><td><code>…action.TRIP_ENDED</code></td><td>Broadcast <em>sent by</em> Service_A</td><td>—</td><td><code>EXTRA_TRIP_ID</code>, <code>EXTRA_DISTANCE_M</code></td><td>Receivers hold <code>READ_TRIPS</code></td></tr>
+                <tr><td><code>…action.SHOW_TRIP</code></td><td>Exported <code>Activity</code></td><td><code>EXTRA_TRIP_ID</code></td><td>Trip screen on top of the caller</td><td>Caller holds <code>READ_TRIPS</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout note">
+            <div class="ci">💡</div>
+            <div><span class="ct">Why a receiver and not <code>startService()</code>?</span>
+              <p>Since Android 8, <code>startService()</code> on another app's service fails with <code>IllegalStateException: Not allowed to start service Intent … app is in background</code> whenever Service_A's app is idle — which is most of the time. An explicit broadcast always reaches a manifest receiver and starts the process. For short work, do it in the receiver with <code>goAsync()</code> (≈10 s budget); for long work, enqueue a job (WorkManager / JobScheduler) from the receiver, or have the client call <code>startForegroundService()</code> while it is itself in the foreground.</p>
+            </div>
+          </div>
+
+          <h3>Step by step</h3>
+          <ol class="steps-list">
+            <li><b>Write the contract</b>Put every action, extra key, status code and permission name in a <code>TripApi</code> object in the shared <code>trip-api</code> library. Prefix every string with your package name so it cannot clash with another app's.</li>
+            <li><b>Declare the permissions</b>In Service_A's manifest, define <code>READ_TRIPS</code> (who may use the API) and <code>SEND_TRIP_EVENTS</code> (held only by Service_A, so clients can tell its events from fakes). Pick the protection level on purpose — see the table below.</li>
+            <li><b>Declare the components</b>Mark the receiver and the activity <code>android:exported="true"</code> and protect each with <code>android:permission="…READ_TRIPS"</code>. The intent-filter makes them discoverable with <code>pm query-receivers</code> / <code>query-activities</code>.</li>
+            <li><b>Implement the receiver</b>Validate every extra (never trust input from another app), call <code>goAsync()</code>, do the work on a background thread, answer through the client's <code>PendingIntent</code>, and call <code>finish()</code> in a <code>finally</code>.</li>
+            <li><b>Send events</b><code>sendBroadcast(intent, READ_TRIPS)</code>: only apps holding the permission receive it. Implicit broadcasts reach only receivers registered at runtime, so clients listen while they are running.</li>
+            <li><b>Document &amp; version</b>New optional extras are backward compatible; a changed meaning is a new action (<code>…REQUEST_TRIP_SUMMARY_V2</code>). Publish the contract with the library version.</li>
+          </ol>
+
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th><code>protectionLevel</code></th><th>Granted to</th><th>Use when</th></tr></thead>
+              <tbody>
+                <tr><td><code>signature</code></td><td>Apps signed with the same certificate as the app that defines it</td><td>All clients are your own apps (typical for an OEM). Used in this module.</td></tr>
+                <tr><td><code>signature|privileged</code></td><td>Same certificate, or privileged apps allowlisted on <code>/system</code>, <code>/product</code>…</td><td>Platform or partner system apps must call you (<a href="https://source.android.com/docs/core/permissions/perms-allowlist" target="_blank" rel="noopener">allowlisting</a>).</td></tr>
+                <tr><td><code>dangerous</code></td><td>Any app — after the user agrees at runtime</td><td>Third-party apps and the data is personal.</td></tr>
+                <tr><td><code>normal</code></td><td>Any app that lists it in <code>&lt;uses-permission&gt;</code></td><td>Only to state intent; gives no real protection.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="ia-contract" aria-selected="true">TripApi.kt (contract)</button>
+              <button data-tab="ia-manifest">Service_A manifest</button>
+              <button data-tab="ia-receiver">ApiReceiver.kt</button>
+              <button data-tab="ia-events">Events &amp; activity</button>
+            </div>
+            <div class="tab-panel" data-panel="ia-contract">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="trip-api/src/main/java/com/example/servicea/api/TripApi.kt" data-label="Kotlin">
+package com.example.servicea.api
+
+/** The public contract of Service_A. Every client compiles against this file and the .aidl files. */
+object TripApi {
+    const val PACKAGE = "com.example.servicea"
+
+    // Permissions (defined in Service_A's manifest)
+    const val PERMISSION_READ_TRIPS = "$PACKAGE.permission.READ_TRIPS"
+    const val PERMISSION_SEND_TRIP_EVENTS = "$PACKAGE.permission.SEND_TRIP_EVENTS"
+    const val PERMISSION_BIND_TRIP_API = "$PACKAGE.permission.BIND_TRIP_API"
+
+    // Intent API
+    const val ACTION_REQUEST_TRIP_SUMMARY = "$PACKAGE.action.REQUEST_TRIP_SUMMARY"
+    const val ACTION_TRIP_ENDED = "$PACKAGE.action.TRIP_ENDED"
+    const val ACTION_SHOW_TRIP = "$PACKAGE.action.SHOW_TRIP"
+    const val EXTRA_TRIP_ID = "$PACKAGE.extra.TRIP_ID"          // long, required
+    const val EXTRA_REPLY = "$PACKAGE.extra.REPLY"              // PendingIntent, optional
+    const val EXTRA_STATUS = "$PACKAGE.extra.STATUS"            // int, in the reply
+    const val EXTRA_DISTANCE_M = "$PACKAGE.extra.DISTANCE_M"    // long
+    const val EXTRA_DURATION_S = "$PACKAGE.extra.DURATION_S"    // long
+    const val STATUS_OK = 0
+    const val STATUS_NOT_FOUND = 1
+    const val STATUS_BAD_REQUEST = 2
+
+    // AIDL API (13.4)
+    const val ACTION_BIND_TRIP_API = "$PACKAGE.action.BIND_TRIP_API"
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ia-manifest">
+              <script type="text/plain" data-code data-lang="xml" data-file="servicea/src/main/AndroidManifest.xml" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.example.servicea">
+
+    <!-- Who may use the Intent API -->
+    <permission android:name="com.example.servicea.permission.READ_TRIPS"
+                android:protectionLevel="signature" />
+    <!-- Held only by Service_A: lets clients verify who sent an event -->
+    <permission android:name="com.example.servicea.permission.SEND_TRIP_EVENTS"
+                android:protectionLevel="signature" />
+    <uses-permission android:name="com.example.servicea.permission.SEND_TRIP_EVENTS" />
+    <!-- Who may bind the AIDL API (13.5) -->
+    <permission android:name="com.example.servicea.permission.BIND_TRIP_API"
+                android:protectionLevel="signature|privileged" />
+
+    <application android:label="Trip service">
+
+        <!-- Request / reply command -->
+        <receiver android:name=".api.ApiReceiver"
+                  android:exported="true"
+                  android:permission="com.example.servicea.permission.READ_TRIPS">
+            <intent-filter>
+                <action android:name="com.example.servicea.action.REQUEST_TRIP_SUMMARY" />
+            </intent-filter>
+        </receiver>
+
+        <!-- UI entry point -->
+        <activity android:name=".ui.TripActivity"
+                  android:exported="true"
+                  android:permission="com.example.servicea.permission.READ_TRIPS">
+            <intent-filter>
+                <action android:name="com.example.servicea.action.SHOW_TRIP" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- AIDL API (13.5) -->
+        <service android:name=".api.TripApiService"
+                 android:exported="true"
+                 android:permission="com.example.servicea.permission.BIND_TRIP_API">
+            <intent-filter>
+                <action android:name="com.example.servicea.action.BIND_TRIP_API" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ia-receiver">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="servicea/src/main/java/com/example/servicea/api/ApiReceiver.kt" data-label="Kotlin">
+package com.example.servicea.api
+
+/** Intent API: REQUEST_TRIP_SUMMARY. The manifest permission already checked the sender. */
+class ApiReceiver : BroadcastReceiver() {
+
+    override fun onReceive(context: Context, intent: Intent) {         // main thread of Service_A
+        if (intent.action != TripApi.ACTION_REQUEST_TRIP_SUMMARY) return
+        val reply = IntentCompat.getParcelableExtra(intent, TripApi.EXTRA_REPLY, PendingIntent::class.java)
+        val tripId = intent.getLongExtra(TripApi.EXTRA_TRIP_ID, -1L)
+        if (tripId <= 0) {                                              // validate every input
+            reply?.let { sendReply(context, it, Intent().putExtra(TripApi.EXTRA_STATUS, TripApi.STATUS_BAD_REQUEST)) }
+            return
+        }
+        Log.i(TAG, "summary of trip $tripId requested by ${reply?.creatorPackage ?: "adb/unknown"}")
+
+        val pending = goAsync()                                         // keep the process alive after onReceive()
+        executor.execute {
+            try {
+                val trip = TripRepository.get(context).find(tripId)    // disk / DB: never on the main thread
+                val result = Intent()
+                if (trip == null) {
+                    result.putExtra(TripApi.EXTRA_STATUS, TripApi.STATUS_NOT_FOUND)
+                } else {
+                    result.putExtra(TripApi.EXTRA_STATUS, TripApi.STATUS_OK)
+                        .putExtra(TripApi.EXTRA_DISTANCE_M, trip.distanceMeters)
+                        .putExtra(TripApi.EXTRA_DURATION_S, trip.durationSeconds)
+                }
+                if (reply != null) sendReply(context, reply, result)
+                else Log.i(TAG, "no reply PendingIntent; result=${result.extras}")
+            } finally {
+                pending.finish()                                        // within ~10 s, or AMS reports an ANR
+            }
+        }
+    }
+
+    private fun sendReply(context: Context, reply: PendingIntent, result: Intent) {
+        try {
+            reply.send(context, 0, result)                              // extras are filled into the client's Intent
+        } catch (e: PendingIntent.CanceledException) {
+            Log.w(TAG, "client cancelled its reply PendingIntent")
+        }
+    }
+
+    private companion object {
+        const val TAG = "ApiReceiver"
+        val executor: Executor = Executors.newSingleThreadExecutor()
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ia-events">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="servicea/src/main/java/com/example/servicea/TripEvents.kt · ui/TripActivity.kt" data-label="Kotlin">
+/** Called by Service_A's trip logic when a trip finishes. */
+fun Context.announceTripEnded(trip: Trip) {
+    val event = Intent(TripApi.ACTION_TRIP_ENDED)
+        .putExtra(TripApi.EXTRA_TRIP_ID, trip.id)
+        .putExtra(TripApi.EXTRA_DISTANCE_M, trip.distanceMeters)
+    // Implicit broadcast: reaches receivers registered at runtime whose app holds READ_TRIPS
+    sendBroadcast(event, TripApi.PERMISSION_READ_TRIPS)
+}
+
+/** Intent API: SHOW_TRIP. Treat the Intent as untrusted input like any other API call. */
+class TripActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val tripId = intent.getLongExtra(TripApi.EXTRA_TRIP_ID, -1L)
+        if (tripId <= 0) {
+            finish()                                                    // bad request: close, do not crash
+            return
+        }
+        setContentView(R.layout.activity_trip)
+        viewModel.load(tripId)
+    }
+}
+              </script>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 13.3 -->
+        <section class="doc-section" id="intent-client" data-title="Intent API, part 2: App_B as client">
+          <div class="sec-head"><h2><span class="sec-num">13.3</span>Intent API, part 2: calling it from App_B</h2></div>
+
+          <h3>Step by step</h3>
+          <ol class="steps-list">
+            <li><b>Depend on the contract</b><code>implementation(project(":trip-api"))</code> — or a published AAR. Never re-type action strings.</li>
+            <li><b>Request the permission</b><code>&lt;uses-permission android:name="com.example.servicea.permission.READ_TRIPS"/&gt;</code>. With <code>signature</code> level it is granted at install only if App_B is signed with Service_A's key. Install Service_A <em>first</em>: a permission that is not defined yet cannot be granted.</li>
+            <li><b>Make Service_A visible</b>Since Android 11, add <code>&lt;queries&gt;&lt;package android:name="com.example.servicea"/&gt;&lt;/queries&gt;</code>. Without it, App_B cannot see Service_A: queries return nothing and Intents do not reach it.</li>
+            <li><b>Build an explicit request</b><code>setPackage("com.example.servicea")</code> so no other app can receive the trip ID, and check with <code>queryBroadcastReceivers()</code> that someone will receive it — a broadcast with no receiver is dropped silently.</li>
+            <li><b>Pass a reply <code>PendingIntent</code></b>Point it at App_B's own <em>non-exported</em> <code>TripReplyReceiver</code> with an explicit component. Use <code>FLAG_MUTABLE</code> so Service_A can add result extras; because the component is fixed, Service_A cannot redirect it. Use <code>FLAG_IMMUTABLE</code> whenever the receiver does not need to fill anything in.</li>
+            <li><b>Send it and handle the reply</b><code>sendBroadcast(request)</code>; the reply arrives in <code>TripReplyReceiver</code> as App_B (the PendingIntent's creator). Plan for no reply at all (Service_A crashed, was updated) with a timeout in your UI.</li>
+            <li><b>Listen for events while running</b>Register at runtime with <code>RECEIVER_EXPORTED</code> (required for other apps' broadcasts when targeting Android 14) and pass <code>SEND_TRIP_EVENTS</code> as the <em>broadcast permission</em>, so only Service_A can deliver <code>TRIP_ENDED</code>. Unregister when done.</li>
+            <li><b>Open Service_A's UI</b><code>startActivity()</code> with an explicit package; catch <code>ActivityNotFoundException</code> and <code>SecurityException</code>.</li>
+          </ol>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="ib-manifest" aria-selected="true">App_B manifest</button>
+              <button data-tab="ib-client">TripClient.kt</button>
+              <button data-tab="ib-reply">TripReplyReceiver.kt</button>
+            </div>
+            <div class="tab-panel" data-panel="ib-manifest">
+              <script type="text/plain" data-code data-lang="xml" data-file="appb/src/main/AndroidManifest.xml" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.example.appb">
+
+    <uses-permission android:name="com.example.servicea.permission.READ_TRIPS" />
+
+    <!-- Android 11+ package visibility: let App_B see Service_A -->
+    <queries>
+        <package android:name="com.example.servicea" />
+    </queries>
+
+    <application android:label="Trips">
+        <!-- Target of the reply PendingIntent. Not exported: only App_B's own PendingIntents reach it -->
+        <receiver android:name=".TripReplyReceiver" android:exported="false" />
+    </application>
+</manifest>
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ib-client">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="appb/src/main/java/com/example/appb/TripClient.kt" data-label="Kotlin">
+package com.example.appb
+
+class TripClient(private val context: Context) {
+
+    /** Sends the request; the answer arrives in TripReplyReceiver. False if Service_A cannot receive it. */
+    fun requestTripSummary(tripId: Long): Boolean {
+        val request = Intent(TripApi.ACTION_REQUEST_TRIP_SUMMARY)
+            .setPackage(TripApi.PACKAGE)                                // explicit: only Service_A receives it
+            .putExtra(TripApi.EXTRA_TRIP_ID, tripId)
+
+        // A broadcast nobody can receive is dropped silently: not installed, not visible, or disabled
+        if (context.packageManager.queryBroadcastReceivers(request, 0).isEmpty()) return false
+
+        val replyTo = Intent(context, TripReplyReceiver::class.java)    // explicit component inside App_B
+            .putExtra(TripApi.EXTRA_TRIP_ID, tripId)
+        val reply = PendingIntent.getBroadcast(
+            context, tripId.toInt(), replyTo,
+            // MUTABLE so Service_A can add result extras; it cannot change the target component
+            PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        context.sendBroadcast(request.putExtra(TripApi.EXTRA_REPLY, reply))
+        return true
+    }
+
+    private val tripEnded = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val id = intent.getLongExtra(TripApi.EXTRA_TRIP_ID, -1L)
+            val meters = intent.getLongExtra(TripApi.EXTRA_DISTANCE_M, 0L)
+            Log.i(TAG, "trip $id ended after $meters m")
+        }
+    }
+
+    /** Events: only while App_B is interested (e.g. between onStart and onStop). */
+    fun startListening() {
+        ContextCompat.registerReceiver(
+            context, tripEnded, IntentFilter(TripApi.ACTION_TRIP_ENDED),
+            TripApi.PERMISSION_SEND_TRIP_EVENTS,                        // the sender must hold this: only Service_A
+            null,
+            ContextCompat.RECEIVER_EXPORTED,                            // the broadcast comes from another app
+        )
+    }
+
+    fun stopListening() = context.unregisterReceiver(tripEnded)
+
+    fun showTrip(tripId: Long) {
+        val intent = Intent(TripApi.ACTION_SHOW_TRIP)
+            .setPackage(TripApi.PACKAGE)
+            .putExtra(TripApi.EXTRA_TRIP_ID, tripId)
+        try {
+            context.startActivity(intent)                               // from an Activity context
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "Service_A is not installed or not visible")
+        } catch (e: SecurityException) {
+            Log.w(TAG, "READ_TRIPS not granted")
+        }
+    }
+
+    private companion object { const val TAG = "TripClient" }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ib-reply">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="appb/src/main/java/com/example/appb/TripReplyReceiver.kt" data-label="Kotlin">
+package com.example.appb
+
+/** Receives Service_A's answer. Runs as App_B: the PendingIntent carries App_B's identity. */
+class TripReplyReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val tripId = intent.getLongExtra(TripApi.EXTRA_TRIP_ID, -1L)   // our own extra, set when creating the PI
+        when (intent.getIntExtra(TripApi.EXTRA_STATUS, TripApi.STATUS_BAD_REQUEST)) {
+            TripApi.STATUS_OK -> TripStore.update(
+                tripId,
+                distanceMeters = intent.getLongExtra(TripApi.EXTRA_DISTANCE_M, 0L),
+                durationSeconds = intent.getLongExtra(TripApi.EXTRA_DURATION_S, 0L),
+            )
+            TripApi.STATUS_NOT_FOUND -> TripStore.markMissing(tripId)
+            else -> Log.w("TripReplyReceiver", "request for trip $tripId rejected")
+        }
+    }
+}
+              </script>
+            </div>
+          </div>
+
+          <h3>What happens inside the framework</h3>
+          <div id="intent-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="Testing the Intent API" data-label="adb">
+# Is the API declared, exported and protected as intended?
+adb shell pm query-receivers --brief -a com.example.servicea.action.REQUEST_TRIP_SUMMARY
+adb shell pm query-activities --brief -a com.example.servicea.action.SHOW_TRIP
+adb shell dumpsys package com.example.servicea | grep -A3 "permission"      # declared permissions
+adb shell dumpsys package com.example.appb | grep READ_TRIPS                 # granted=true ?
+
+# Call it without App_B. The shell does not hold a signature permission, so expect
+# "Permission Denial ... requires com.example.servicea.permission.READ_TRIPS" in logcat —
+# proof that the protection works. (Temporarily drop android:permission in a debug build to test the logic.)
+adb shell am broadcast -a com.example.servicea.action.REQUEST_TRIP_SUMMARY \
+    -p com.example.servicea --el com.example.servicea.extra.TRIP_ID 42
+adb shell am start -a com.example.servicea.action.SHOW_TRIP \
+    -p com.example.servicea --el com.example.servicea.extra.TRIP_ID 42
+
+# Watch the flow
+adb logcat -s ApiReceiver TripClient TripReplyReceiver ActivityManager:W
+adb shell dumpsys activity broadcasts | grep -B2 -A8 REQUEST_TRIP_SUMMARY   # recent delivery history
+adb shell dumpsys activity broadcasts | grep -A3 TRIP_ENDED                 # App_B's runtime receiver registered?
+          </script>
+        </section>
+
+        <!-- ======================================================= 13.4 -->
+        <section class="doc-section" id="aidl-contract" data-title="AIDL API, part 1: define & build the interface">
+          <div class="sec-head"><h2><span class="sec-num">13.4</span>AIDL API, part 1: define &amp; build the interface</h2></div>
+          <p>Service_C needs more than an occasional command: it queries trips often and wants every update pushed to it. That calls for a <strong>bound service with an AIDL interface</strong>. The <code>.aidl</code> files go into the same <code>trip-api</code> library as the constants, so Service_A (server) and Service_C (client) compile the identical interface. See <a href="fundamentals.html#binder">3.2</a> for how Binder carries the calls.</p>
+
+          <h3>Step by step</h3>
+          <ol class="steps-list">
+            <li><b>Pick the package</b>The AIDL package (<code>com.example.servicea.api</code>) is part of the interface descriptor written into every transaction. Changing it later breaks every client.</li>
+            <li><b>Define the data</b>A <em>structured parcelable</em> (<code>parcelable TripSummary { … }</code>) lets the AIDL compiler generate the class and its marshalling code — no hand-written <code>Parcelable</code>.</li>
+            <li><b>Define the callback</b>Make it a <code>oneway interface</code>: the server never blocks on a slow or dead client.</li>
+            <li><b>Define the service interface</b>Start with a version method, then the calls. Mark parameters <code>in</code> (the default for most clients); add <code>@nullable</code> where null is a valid answer.</li>
+            <li><b>Enable the build</b>Gradle: <code>buildFeatures { aidl = true }</code> in the library (AGP 8 disables AIDL by default). Platform build: an <code>aidl_interface</code> module; both apps link its <code>-java</code> library.</li>
+            <li><b>Freeze &amp; evolve</b>Once a client ships, only <em>append</em> methods and parcelable fields. Never reorder, rename or remove — each method is identified by its position (transaction code), not by its name.</li>
+          </ol>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="ac-svc" aria-selected="true">ITripService.aidl</button>
+              <button data-tab="ac-cb">ITripListener.aidl</button>
+              <button data-tab="ac-data">TripSummary.aidl</button>
+              <button data-tab="ac-gradle">Gradle</button>
+              <button data-tab="ac-bp">Android.bp</button>
+            </div>
+            <div class="tab-panel" data-panel="ac-svc">
+              <script type="text/plain" data-code data-lang="aidl" data-file="trip-api/src/main/aidl/com/example/servicea/api/ITripService.aidl" data-label="AIDL">
+package com.example.servicea.api;
+
+import com.example.servicea.api.ITripListener;
+import com.example.servicea.api.TripSummary;
+
+/** Bound by Service_C. Requires com.example.servicea.permission.BIND_TRIP_API. */
+interface ITripService {
+    /** 1 = first release. Bumped whenever methods are appended. */
+    int getApiVersion();
+
+    /** Null if the trip does not exist. Blocking: call from a worker thread. */
+    @nullable TripSummary getTripSummary(long tripId);
+
+    void registerListener(ITripListener listener);
+    void unregisterListener(ITripListener listener);
+
+    // Append new methods below this line only. Never reorder or remove.
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ac-cb">
+              <script type="text/plain" data-code data-lang="aidl" data-file="trip-api/src/main/aidl/com/example/servicea/api/ITripListener.aidl" data-label="AIDL">
+package com.example.servicea.api;
+
+import com.example.servicea.api.TripSummary;
+
+/** Implemented by clients. oneway: Service_A never waits for a client to return. */
+oneway interface ITripListener {
+    void onTripUpdated(in TripSummary summary);
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ac-data">
+              <script type="text/plain" data-code data-lang="aidl" data-file="trip-api/src/main/aidl/com/example/servicea/api/TripSummary.aidl" data-label="AIDL">
+package com.example.servicea.api;
+
+/** Structured parcelable: the AIDL compiler generates the Java class with these public fields. */
+parcelable TripSummary {
+    long tripId;
+    long distanceMeters;
+    long durationSeconds;
+    @nullable String driverName;
+    // Append new fields at the end only; old readers ignore them, new readers see defaults from old writers.
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ac-gradle">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="trip-api/build.gradle.kts · servicea / servicec build.gradle.kts" data-label="Gradle">
+// trip-api/build.gradle.kts — the shared contract library
+plugins {
+    id("com.android.library")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.example.servicea.api"
+    compileSdk = 34
+    defaultConfig { minSdk = 29 }
+    buildFeatures { aidl = true }          // AGP 8+: off by default
+}
+
+// servicea/build.gradle.kts and servicec/build.gradle.kts (and appb for the constants)
+dependencies {
+    implementation(project(":trip-api"))   // separate repos: publish trip-api as a versioned AAR
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="ac-bp">
+              <script type="text/plain" data-code data-lang="conf" data-file="vendor/example/trip/Android.bp (platform build)" data-label="Android.bp">
+// Generates com.example.servicea.api-java (plus other backends if enabled)
+aidl_interface {
+    name: "com.example.servicea.api",
+    srcs: ["aidl/com/example/servicea/api/*.aidl"],
+    local_include_dir: "aidl",
+    unstable: true,              // for a frozen, versioned API use versions_with_info and `m <name>-freeze-api`
+    backend: {
+        java: { sdk_version: "system_current" },
+        cpp: { enabled: false },
+        ndk: { enabled: false },
+    },
+}
+
+android_app {
+    name: "TripServiceA",
+    srcs: ["servicea/src/**/*.kt", "api/src/**/*.kt"],
+    static_libs: ["com.example.servicea.api-java"],
+    certificate: "platform",
+    privileged: true,
+    product_specific: true,
+    platform_apis: true,
+}
+              </script>
+            </div>
+          </div>
+
+          <div class="callout warn">
+            <div class="ci">🧮</div>
+            <div><span class="ct">How a method is identified</span>
+              <p>The generated proxy sends <code>FIRST_CALL_TRANSACTION + index</code> for each method — <code>getApiVersion</code> is 1, <code>getTripSummary</code> 2, and so on. If Service_A reorders two methods, an old Service_C calls the wrong one with the wrong arguments. If a new client calls a method an old server does not have, it gets a <code>RemoteException</code>: call <code>getApiVersion()</code> first and skip newer methods.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 13.5 -->
+        <section class="doc-section" id="aidl-server" data-title="AIDL API, part 2: implement it in Service_A">
+          <div class="sec-head"><h2><span class="sec-num">13.5</span>AIDL API, part 2: implement &amp; expose it in Service_A</h2></div>
+
+          <h3>Step by step</h3>
+          <ol class="steps-list">
+            <li><b>Implement the stub</b><code>object : ITripService.Stub() { … }</code> inside a <code>Service</code>. Return it from <code>onBind()</code> — only for the expected action, otherwise return <code>null</code>.</li>
+            <li><b>Remember the threads</b>Stub methods run on Service_A's <strong>Binder thread pool</strong> (about 16 threads by default), several at once. Guard shared state with a lock or hand work to one worker thread. Keep each call short: the client is blocked until you return.</li>
+            <li><b>Check the caller on every call</b>The manifest <code>android:permission</code> checks the client at bind time; re-check in each method with <code>enforceCallingPermission()</code>, and use <code>Binder.getCallingUid()</code> if answers depend on who is asking.</li>
+            <li><b>Validate input, report errors as exceptions</b>Throw <code>IllegalArgumentException</code>, <code>SecurityException</code>, <code>IllegalStateException</code> or <code>ServiceSpecificException</code> — these are re-thrown in the client. Other exception types do not cross the process boundary: the server only logs them and the client gets a generic failure.</li>
+            <li><b>Keep callbacks in a <code>RemoteCallbackList</code></b>It links to each client's death and drops dead listeners automatically, and its broadcast API is safe while clients come and go.</li>
+            <li><b>Declare and protect the service</b><code>android:exported="true"</code>, <code>android:permission="…BIND_TRIP_API"</code>, an intent-filter with <code>…action.BIND_TRIP_API</code> (see the manifest in <a href="#intent-server">13.2</a>).</li>
+            <li><b>Make it debuggable</b>Override <code>dump()</code>: <code>adb shell dumpsys activity service com.example.servicea/.api.TripApiService</code> prints it, exactly like the framework services in <a href="services.html#dumpsys">12.8</a>.</li>
+          </ol>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="as-kotlin" aria-selected="true">Kotlin · TripApiService</button>
+              <button data-tab="as-java">Java · TripApiService</button>
+            </div>
+            <div class="tab-panel" data-panel="as-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="servicea/src/main/java/com/example/servicea/api/TripApiService.kt" data-label="Kotlin">
+package com.example.servicea.api
+
+class TripApiService : Service() {
+
+    private val repo by lazy { TripRepository.get(this) }
+    private val worker: ExecutorService = Executors.newSingleThreadExecutor()
+    private val listeners = RemoteCallbackList<ITripListener>()        // drops dead clients itself
+    private var unsubscribe: (() -> Unit)? = null
+
+    private val binder = object : ITripService.Stub() {
+        // Binder threads of Service_A — several calls can run at the same time
+
+        override fun getApiVersion(): Int = API_VERSION
+
+        override fun getTripSummary(tripId: Long): TripSummary? {
+            enforceCaller("getTripSummary")
+            require(tripId > 0) { "tripId must be > 0, was $tripId" }   // IllegalArgumentException → client
+            return repo.find(tripId)?.toSummary()                       // short, thread-safe read
+        }
+
+        override fun registerListener(listener: ITripListener) {
+            enforceCaller("registerListener")
+            listeners.register(listener, Binder.getCallingUid())        // cookie: who registered (for dump)
+        }
+
+        override fun unregisterListener(listener: ITripListener) {
+            listeners.unregister(listener)
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        unsubscribe = repo.observe { trip -> worker.execute { notifyListeners(trip.toSummary()) } }
+    }
+
+    override fun onBind(intent: Intent): IBinder? =
+        if (intent.action == TripApi.ACTION_BIND_TRIP_API) binder else null   // null → client: onNullBinding
+
+    private fun notifyListeners(summary: TripSummary) {                 // only ever on `worker`
+        val n = listeners.beginBroadcast()
+        try {
+            for (i in 0 until n) {
+                try {
+                    listeners.getBroadcastItem(i).onTripUpdated(summary) // oneway: returns immediately
+                } catch (e: RemoteException) {
+                    // the client died; RemoteCallbackList removes it
+                }
+            }
+        } finally {
+            listeners.finishBroadcast()
+        }
+    }
+
+    /** Defence in depth: the manifest permission guarded the bind; re-check every call. */
+    private fun enforceCaller(method: String) =
+        enforceCallingPermission(TripApi.PERMISSION_BIND_TRIP_API, method)
+
+    override fun dump(fd: FileDescriptor, writer: PrintWriter, args: Array<out String>?) {
+        writer.println("apiVersion=$API_VERSION listeners=${listeners.registeredCallbackCount}")
+    }
+
+    override fun onDestroy() {
+        unsubscribe?.invoke()
+        listeners.kill()
+        worker.shutdown()
+        super.onDestroy()
+    }
+
+    private companion object { const val API_VERSION = 1 }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="as-java">
+              <script type="text/plain" data-code data-lang="java" data-file="servicea/src/main/java/com/example/servicea/api/TripApiService.java" data-label="Java">
+package com.example.servicea.api;
+
+public final class TripApiService extends Service {
+    private static final int API_VERSION = 1;
+
+    private final ExecutorService worker = Executors.newSingleThreadExecutor();
+    private final RemoteCallbackList<ITripListener> listeners = new RemoteCallbackList<>();
+    private TripRepository repo;
+    private Runnable unsubscribe;
+
+    private final ITripService.Stub binder = new ITripService.Stub() {
+        // Binder threads of Service_A — several calls can run at the same time
+        @Override public int getApiVersion() {
+            return API_VERSION;
+        }
+
+        @Override public TripSummary getTripSummary(long tripId) {
+            enforceCaller("getTripSummary");
+            if (tripId <= 0) {
+                throw new IllegalArgumentException("tripId must be > 0, was " + tripId);   // → client
+            }
+            Trip trip = repo.find(tripId);
+            return trip == null ? null : trip.toSummary();
+        }
+
+        @Override public void registerListener(ITripListener listener) {
+            enforceCaller("registerListener");
+            listeners.register(listener, Binder.getCallingUid());
+        }
+
+        @Override public void unregisterListener(ITripListener listener) {
+            listeners.unregister(listener);
+        }
+    };
+
+    @Override public void onCreate() {
+        super.onCreate();
+        repo = TripRepository.get(this);
+        unsubscribe = repo.observe(trip -> worker.execute(() -> notifyListeners(trip.toSummary())));
+    }
+
+    @Override public IBinder onBind(Intent intent) {
+        return TripApi.ACTION_BIND_TRIP_API.equals(intent.getAction()) ? binder : null;
+    }
+
+    private void notifyListeners(TripSummary summary) {                // only ever on `worker`
+        int n = listeners.beginBroadcast();
+        try {
+            for (int i = 0; i < n; i++) {
+                try {
+                    listeners.getBroadcastItem(i).onTripUpdated(summary);   // oneway
+                } catch (RemoteException e) {
+                    // the client died; RemoteCallbackList removes it
+                }
+            }
+        } finally {
+            listeners.finishBroadcast();
+        }
+    }
+
+    private void enforceCaller(String method) {
+        enforceCallingPermission(TripApi.PERMISSION_BIND_TRIP_API, method);
+    }
+
+    @Override protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+        writer.println("apiVersion=" + API_VERSION
+                + " listeners=" + listeners.getRegisteredCallbackCount());
+    }
+
+    @Override public void onDestroy() {
+        if (unsubscribe != null) unsubscribe.run();
+        listeners.kill();
+        worker.shutdown();
+        super.onDestroy();
+    }
+}
+              </script>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 13.6 -->
+        <section class="doc-section" id="aidl-client" data-title="AIDL API, part 3: Service_C as client">
+          <div class="sec-head"><h2><span class="sec-num">13.6</span>AIDL API, part 3: binding from Service_C</h2></div>
+
+          <h3>Step by step</h3>
+          <ol class="steps-list">
+            <li><b>Request the permission and visibility</b><code>&lt;uses-permission&gt;</code> for <code>BIND_TRIP_API</code> and a <code>&lt;queries&gt;</code> entry for the bind action. Without either, <code>bindService()</code> returns <code>false</code>.</li>
+            <li><b>Bind with an explicit Intent</b>Action plus <code>setPackage()</code>; an implicit Intent throws <code>IllegalArgumentException</code> since Android 5. Use <code>BIND_AUTO_CREATE</code> so Android starts Service_A, and restarts it after a crash, while the binding exists.</li>
+            <li><b>Convert the binder</b>In <code>onServiceConnected()</code> call <code>ITripService.Stub.asInterface(binder)</code>. Check <code>apiVersion</code> before using newer methods.</li>
+            <li><b>Never call on the main thread</b><code>onServiceConnected()</code> runs on the main thread, and every proxy call blocks until Service_A returns. Post calls to a worker thread (or use a coroutine on <code>Dispatchers.IO</code>).</li>
+            <li><b>Register the callback</b>Implement <code>ITripListener.Stub</code>. Its methods run on Service_C's Binder threads — post to your own thread before touching state.</li>
+            <li><b>Handle the three ways a binding breaks</b><code>onServiceDisconnected()</code>: Service_A's process died; Android re-binds and calls <code>onServiceConnected()</code> again, so register the listener again there. <code>onBindingDied()</code>: the binding will never come back (Service_A updated or force-stopped) — unbind and bind again. <code>onNullBinding()</code>: Service_A refused (returned <code>null</code>). Calls in flight throw <code>DeadObjectException</code>.</li>
+            <li><b>Clean up</b>Unregister the listener and <code>unbindService()</code> in <code>onDestroy()</code>. When the last client unbinds, Service_A gets <code>onUnbind()</code> and <code>onDestroy()</code>.</li>
+            <li><b>Multi-user (AAOS)</b>A service running as the headless system user (user 0) binds Service_A in user 0. To reach the driver's instance, a privileged client uses <code>bindServiceAsUser()</code> with <code>INTERACT_ACROSS_USERS</code> (<a href="users.html#model">8.1</a>).</li>
+          </ol>
+
+          <div class="tabs" data-tabs>
+            <div class="tab-list" role="tablist">
+              <button data-tab="cc-kotlin" aria-selected="true">Kotlin · FleetSyncService</button>
+              <button data-tab="cc-manifest">Service_C manifest</button>
+            </div>
+            <div class="tab-panel" data-panel="cc-kotlin">
+              <script type="text/plain" data-code data-lang="kotlin" data-file="servicec/src/main/java/com/example/servicec/FleetSyncService.kt" data-label="Kotlin">
+package com.example.servicec
+
+/** Service_C: keeps a live connection to Service_A and uploads every trip update. */
+class FleetSyncService : Service() {
+
+    private val worker = HandlerThread("FleetSync").apply { start() }
+    private val handler = Handler(worker.looper)
+    @Volatile private var trips: ITripService? = null
+    private var bound = false                                           // main thread only
+
+    private val listener = object : ITripListener.Stub() {
+        override fun onTripUpdated(summary: TripSummary) {              // a Binder thread of Service_C
+            handler.post { Uploader.upload(summary) }
+        }
+    }
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, binder: IBinder) {   // main thread
+            val api = ITripService.Stub.asInterface(binder)             // Proxy: every call is IPC
+            handler.post {
+                try {
+                    if (api.apiVersion < MIN_API_VERSION) {
+                        Log.e(TAG, "Service_A API ${api.apiVersion} is too old")
+                        return@post
+                    }
+                    api.registerListener(listener)                      // again after every reconnect
+                    trips = api
+                } catch (e: RemoteException) {
+                    Log.w(TAG, "Service_A died while connecting")       // onServiceDisconnected follows
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            trips = null        // Service_A crashed; Android restarts it and calls onServiceConnected again
+        }
+
+        override fun onBindingDied(name: ComponentName) {
+            trips = null        // dead for good (updated / force-stopped): bind again
+            unbindService(this)
+            bound = false
+            Handler(Looper.getMainLooper()).postDelayed({ bindTripApi() }, REBIND_DELAY_MS)
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            Log.e(TAG, "Service_A refused the binding (onBind returned null)")
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        bindTripApi()
+    }
+
+    private fun bindTripApi() {
+        val intent = Intent(TripApi.ACTION_BIND_TRIP_API).setPackage(TripApi.PACKAGE)   // explicit
+        bound = bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        if (!bound) Log.e(TAG, "cannot bind: not installed, not visible (<queries>) or permission denied")
+    }
+
+    /** Synchronous query — call it from a worker thread, never from the main thread. */
+    fun fetchSummary(tripId: Long): TripSummary? = try {
+        trips?.getTripSummary(tripId)
+    } catch (e: DeadObjectException) {
+        null                                                            // Service_A died mid-call
+    } catch (e: RemoteException) {
+        null
+    }
+
+    override fun onDestroy() {
+        trips?.let {
+            try { it.unregisterListener(listener) } catch (e: RemoteException) { /* already gone */ }
+        }
+        if (bound) unbindService(connection)
+        worker.quitSafely()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent): IBinder? = null
+
+    private companion object {
+        const val TAG = "FleetSync"
+        const val MIN_API_VERSION = 1
+        const val REBIND_DELAY_MS = 1_000L
+    }
+}
+              </script>
+            </div>
+            <div class="tab-panel" data-panel="cc-manifest">
+              <script type="text/plain" data-code data-lang="xml" data-file="servicec/src/main/AndroidManifest.xml" data-label="XML">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          package="com.example.servicec">
+
+    <uses-permission android:name="com.example.servicea.permission.BIND_TRIP_API" />
+
+    <!-- Android 11+ package visibility: see every app that offers the bind action -->
+    <queries>
+        <intent>
+            <action android:name="com.example.servicea.action.BIND_TRIP_API" />
+        </intent>
+    </queries>
+
+    <application android:label="Fleet sync">
+        <!-- Started by Service_C's own app (boot receiver, job…). Not part of any API: not exported -->
+        <service android:name=".FleetSyncService" android:exported="false" />
+    </application>
+</manifest>
+              </script>
+            </div>
+          </div>
+
+          <h3>What happens inside the framework</h3>
+          <div id="aidl-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="Testing the AIDL API" data-label="adb">
+# Is the service there, exported and protected?
+adb shell pm query-services --brief -a com.example.servicea.action.BIND_TRIP_API
+adb shell dumpsys package com.example.servicec | grep BIND_TRIP_API            # granted=true ?
+
+# Is Service_C bound? Look for the ServiceRecord, its bindings and the client connection
+adb shell dumpsys activity services com.example.servicea
+adb shell dumpsys activity service com.example.servicea/.api.TripApiService    # our dump(): version, listeners
+
+# Resilience: what does Service_C do when Service_A goes away?
+adb shell pidof com.example.servicea
+adb shell am crash com.example.servicea        # → onServiceDisconnected, then onServiceConnected (re-register)
+adb shell am force-stop com.example.servicea   # → onBindingDied → unbind + bind again
+adb install -r servicea.apk                    # update → onBindingDied as well
+adb logcat -s FleetSync TripApiService ActivityManager:I
+          </script>
+        </section>
+
+        <!-- ======================================================= 13.7 -->
+        <section class="doc-section" id="api-checklist" data-title="Security & robustness checklist">
+          <div class="sec-head"><h2><span class="sec-num">13.7</span>Security &amp; robustness checklist</h2></div>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Rule</th><th>Intent API (App_B)</th><th>AIDL API (Service_C)</th></tr></thead>
+              <tbody>
+                <tr><td>Export on purpose</td><td>Set <code>android:exported</code> on every component; reply receivers <code>false</code></td><td>Only the API service is exported</td></tr>
+                <tr><td>Protect with a permission</td><td><code>android:permission</code> on receiver / activity; permission on <code>sendBroadcast()</code> for events</td><td><code>android:permission</code> on the service + <code>enforceCallingPermission()</code> per call</td></tr>
+                <tr><td>Know the caller</td><td><code>PendingIntent.creatorPackage</code>; Android 14+: <code>BroadcastReceiver.getSentFromPackage()</code> when the sender opts in</td><td><code>Binder.getCallingUid()</code> → <code>packageManager.getPackagesForUid()</code></td></tr>
+                <tr><td>Validate every input</td><td>Missing or wrong extras; catch <code>BadParcelableException</code> when reading unknown Parcelables</td><td>Range-check arguments; throw <code>IllegalArgumentException</code></td></tr>
+                <tr><td>Explicit targets</td><td><code>setPackage()</code> / component on requests and on the PendingIntent's Intent; mutable only when needed</td><td>Explicit bind Intent (required)</td></tr>
+                <tr><td>Threads</td><td><code>onReceive()</code> on the main thread: <code>goAsync()</code> + worker, <code>finish()</code> in ~10 s</td><td>Server: Binder pool, thread-safe. Client: no calls on the main thread; callbacks on Binder threads</td></tr>
+                <tr><td>Size limits</td><td>Extras travel in one Binder transaction (shared 1 MB buffer) — pass IDs, not data</td><td>Same limit → <code>TransactionTooLargeException</code>; stream large data with <code>ParcelFileDescriptor</code> or <code>SharedMemory</code></td></tr>
+                <tr><td>Peer death</td><td>Expect no reply; time out</td><td><code>onServiceDisconnected</code> / <code>onBindingDied</code>; server: <code>RemoteCallbackList</code></td></tr>
+                <tr><td>Versioning</td><td>New optional extras only; new action for new semantics</td><td>Append-only methods &amp; fields; <code>getApiVersion()</code> (or frozen <code>aidl_interface</code> versions)</td></tr>
+                <tr><td>Visibility &amp; users</td><td colspan="2"><code>&lt;queries&gt;</code> on the client (Android 11+). On AAOS, every app exists once per user — make sure both sides run in the same user, or bind across users explicitly from a privileged app.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ======================================================= 13.8 -->
+        <section class="doc-section" id="system-variant" data-title="Variant: Service_A as a system service">
+          <div class="sec-head"><h2><span class="sec-num">13.8</span>Variant: when Service_A is a system service</h2></div>
+          <p>Everything above uses ordinary app components, so ActivityManagerService finds, starts and protects Service_A. If Service_A must be available very early in boot, to native code, or to every app through <code>getSystemService()</code>, it becomes a <strong>system service</strong> instead and registers its binder in <code>servicemanager</code> under a name — exactly like the framework services in <a href="services.html#system-server">12.1</a>.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th></th><th>App bound service (this module)</th><th>System service</th></tr></thead>
+              <tbody>
+                <tr><td>Clients find it with</td><td><code>bindService(Intent)</code> through AMS</td><td><code>ServiceManager.getService("trip")</code> or a manager from <code>getSystemService()</code></td></tr>
+                <tr><td>Lifecycle</td><td>Started on demand, restarted on crash by AMS</td><td>Always running in <code>system_server</code> or its own daemon</td></tr>
+                <tr><td>Access control</td><td>Manifest permission + per-call check</td><td>SELinux <code>service_contexts</code> (who may find it) + per-call permission check</td></tr>
+                <tr><td>How to add it</td><td>Any app</td><td>Platform change (<a href="extensions.html#system-service">10.6</a>) or overlay helper (<a href="platform.html#overlay-service">11.8</a>)</td></tr>
+                <tr><td>Test with</td><td><code>dumpsys activity service …</code></td><td><code>dumpsys trip</code> · <code>service call trip 1</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <script type="text/plain" data-code data-lang="conf" data-file="Testing a servicemanager-registered service" data-label="adb">
+adb shell service list | grep trip              # registered?  "trip: [com.example.servicea.api.ITripService]"
+adb shell service check trip
+adb shell dumpsys trip                           # the service's dump()
+adb shell service call trip 1                    # transaction 1 = getApiVersion(); prints the raw reply Parcel
+adb shell service call trip 2 i64 42             # getTripSummary(42)
+          </script>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js?v=__BUILD__"></script>
+  <script src="assets/js/core.js?v=__BUILD__"></script>
+  <script src="assets/js/diagrams.js?v=__BUILD__"></script>
+  <script src="assets/js/pages/expose-apis.js?v=__BUILD__"></script>
+</body>
+</html>
