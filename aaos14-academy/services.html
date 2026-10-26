@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Android Framework Services — AAOS 14 Academy</title>
+  <meta name="description" content="The core Android framework services inside system_server — ActivityManagerService, PackageManagerService, WindowManagerService, InputManagerService and PowerManagerService: what each one does, how it works step by step, and the dumpsys / cmd commands to inspect it.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="color-scheme" content="dark light">
+  <link rel="stylesheet" href="assets/css/main.css?v=__BUILD__">
+  <script>try{var t=localStorage.getItem("aaos-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body data-page="services">
+  <div id="site-header"></div>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content">
+      <div class="content-inner">
+
+        <header class="page-hero">
+          <nav class="crumbs"><a href="index.html">Home</a><span>/</span><span>Module 12</span></nav>
+          <div class="eyebrow">Module 12 · Framework Deep Dive</div>
+          <h1>Android Framework Services</h1>
+          <p class="lead">CarService sits on top of the same framework every Android device runs. This module opens the big services inside <code>system_server</code> — Activity, Package, Window, Input and Power — and for each one explains what it owns, how a typical request flows through it step by step, and which <code>dumpsys</code> and <code>cmd</code> commands show its state on a real device.</p>
+          <div class="page-meta"><span>⏱ 45 min read</span><span>🎯 Intermediate</span><span>📂 <a href="https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/services/" target="_blank" rel="noopener">frameworks/base/services</a></span></div>
+        </header>
+
+        <!-- ======================================================= 12.1 -->
+        <section class="doc-section" id="system-server" data-title="system_server & how a framework service works">
+          <div class="sec-head"><h2><span class="sec-num">12.1</span>system_server &amp; how a framework service works</h2></div>
+          <p>Almost every framework service is a Java object living in <strong>one process</strong>, <code>system_server</code>, forked by Zygote at boot. Each service follows the same recipe: a class that <code>extends SystemService</code> (or is wrapped by one), a <strong>Binder stub</strong> it publishes to <code>servicemanager</code> under a short name (<code>activity</code>, <code>package</code>, <code>window</code>…), and a <strong>manager class</strong> in the app's process that hides the Binder calls. Hover a box to trace its connections.</p>
+          <div class="glass"><div class="hd-wrap" id="hd-sysserver"></div></div>
+
+          <div class="grid grid-3 mt">
+            <div class="glass card"><h4 class="c-blue">① Apps: managers</h4><p class="small"><code>context.getSystemService(ActivityManager::class.java)</code> returns a manager. <code>SystemServiceRegistry</code> looks the binder up in <code>servicemanager</code> once and wraps it in the AIDL proxy (<code>IActivityManager.Stub.asInterface</code>).</p></div>
+            <div class="glass card"><h4 class="c-green">② Services: each other</h4><p class="small">Inside <code>system_server</code> services do not use Binder to talk to each other. They call <code>LocalServices.getService(ActivityManagerInternal.class)</code> — a plain in-process Java interface, no IPC, no permission check.</p></div>
+            <div class="glass card"><h4 class="c-amber">③ Engineers: the shell</h4><p class="small"><code>dumpsys &lt;name&gt;</code> calls the service's <code>dump()</code>; <code>cmd &lt;name&gt;</code> calls its <code>onShellCommand()</code>. <code>am</code>, <code>pm</code> and <code>wm</code> are thin wrappers around <code>cmd activity</code>, <code>cmd package</code> and <code>cmd window</code>. See <a href="#dumpsys">12.8</a>.</p></div>
+          </div>
+
+          <h3>Startup order and boot phases</h3>
+          <p><code>SystemServer.run()</code> starts services in four batches, then walks every started service through numbered <strong>boot phases</strong>. A service may only use another service once the phase guarantees it exists.</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Step</th><th>What starts / what it means</th></tr></thead>
+              <tbody>
+                <tr><td><code>startBootstrapServices()</code></td><td>Services everything else depends on: <code>Installer</code> (talks to <code>installd</code>), ActivityTaskManager, ActivityManager, Power, DisplayManager, PackageManager, UserManager, OverlayManager.</td></tr>
+                <tr><td><code>startCoreServices()</code></td><td>Battery, usage stats, WebView updater, Binder call stats, GPU service…</td></tr>
+                <tr><td><code>startOtherServices()</code></td><td>The long tail: WindowManager, InputManager, Alarm, Notification, Connectivity, Audio… and on cars <code>CarServiceHelperService</code> (<a href="platform.html#boot">11.3</a>). Ends with <code>ActivityManagerService.systemReady()</code>, which launches the home app.</td></tr>
+                <tr><td><code>startApexServices()</code></td><td>Services shipped inside updatable APEX modules (Android 13+).</td></tr>
+                <tr><td><code>PHASE_WAIT_FOR_DEFAULT_DISPLAY</code> (100)</td><td>The default display exists.</td></tr>
+                <tr><td><code>PHASE_LOCK_SETTINGS_READY</code> (480)</td><td>Lock-settings data can be read.</td></tr>
+                <tr><td><code>PHASE_SYSTEM_SERVICES_READY</code> (500)</td><td>Core services (Power, PackageManager…) can be called safely.</td></tr>
+                <tr><td><code>PHASE_DEVICE_SPECIFIC_SERVICES_READY</code> (520)</td><td>Services from <code>config_deviceSpecificSystemServices</code> are up (<a href="platform.html#overlay-service">11.8</a>).</td></tr>
+                <tr><td><code>PHASE_ACTIVITY_MANAGER_READY</code> (550)</td><td>Broadcasts can be sent.</td></tr>
+                <tr><td><code>PHASE_THIRD_PARTY_APPS_CAN_START</code> (600)</td><td>Services may bind to or start app processes.</td></tr>
+                <tr><td><code>PHASE_BOOT_COMPLETED</code> (1000)</td><td>Home is up and <code>BOOT_COMPLETED</code> has been sent.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Step by step: from <code>getSystemService()</code> to the service and back</h3>
+          <div id="ss-seq"></div>
+
+          <div class="lang-switch">
+          <script type="text/plain" data-code data-lang="java" data-file="Anatomy of a framework service (abridged, frameworks/base/services/core)" data-label="Service side">
+public final class FooManagerService extends SystemService {
+    private final Object mLock = new Object();             // one lock guards all state
+
+    private final IFooManager.Stub mBinder = new IFooManager.Stub() {
+        @Override
+        public int getState() {                            // runs on a Binder thread of system_server
+            getContext().enforceCallingOrSelfPermission(
+                    android.Manifest.permission.READ_FOO, "getState");
+            synchronized (mLock) {
+                return mState;
+            }
+        }
+
+        @Override
+        protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+            if (!DumpUtils.checkDumpPermission(getContext(), TAG, pw)) return;
+            synchronized (mLock) {
+                pw.println("mState=" + mState);            // what `dumpsys foo` prints
+            }
+        }
+    };
+
+    public FooManagerService(Context context) { super(context); }
+
+    @Override
+    public void onStart() {
+        publishBinderService(Context.FOO_SERVICE, mBinder);  // → servicemanager.addService("foo")
+        publishLocalService(FooManagerInternal.class, new LocalImpl()); // for other system services
+    }
+
+    @Override
+    public void onBootPhase(int phase) {
+        if (phase == PHASE_SYSTEM_SERVICES_READY) {
+            // safe to call other services now
+        }
+    }
+}
+          </script>
+          <script type="text/plain" data-code data-lang="java" data-file="Client side: SystemServiceRegistry + manager (abridged, frameworks/base/core)" data-label="Client side">
+// SystemServiceRegistry — static block, runs once per app process
+registerService(Context.FOO_SERVICE, FooManager.class,
+        new CachedServiceFetcher<FooManager>() {
+            @Override
+            public FooManager createService(ContextImpl ctx) throws ServiceNotFoundException {
+                IBinder b = ServiceManager.getServiceOrThrow(Context.FOO_SERVICE); // Binder to servicemanager
+                return new FooManager(ctx, IFooManager.Stub.asInterface(b));       // wrap in the AIDL proxy
+            }
+        });
+
+// FooManager — the public API apps see
+public int getState() {
+    try {
+        return mService.getState();                        // Binder transaction to system_server
+    } catch (RemoteException e) {
+        throw e.rethrowFromSystemServer();                 // system_server died: the device is restarting
+    }
+}
+          </script>
+          </div>
+
+          <div class="callout warn">
+            <div class="ci">🐕</div>
+            <div><span class="ct">The system_server watchdog</span>
+              <p>All framework services share one process. <code>Watchdog</code> checks that the main locks and handler threads of AMS, WMS, PMS and others make progress; if one is blocked for about a minute it dumps every thread's stack to <code>/data/anr/</code> and kills <code>system_server</code>, which restarts the framework (a "soft reboot"). Look for <code>*** WATCHDOG KILLING SYSTEM PROCESS</code> in logcat.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================================================= 12.2 -->
+        <section class="doc-section" id="ams" data-title="ActivityManagerService (AMS & ATMS)">
+          <div class="sec-head"><h2><span class="sec-num">12.2</span>ActivityManagerService &amp; ActivityTaskManagerService</h2></div>
+          <p><strong>ActivityManagerService (AMS)</strong> decides which app processes exist and how important each one is. Since Android 10 the activity and task half of it lives in <strong>ActivityTaskManagerService (ATMS)</strong>, in the window manager package, because tasks and windows form one hierarchy. Both are registered in <code>servicemanager</code>: <code>activity</code> (AMS) and <code>activity_task</code> (ATMS).</p>
+
+          <h3>Functionality &amp; features</h3>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Processes &amp; priorities</h4><p class="small">Starts processes through Zygote (<code>ProcessList</code>), keeps the LRU list, and computes each process's <strong>oom_adj</strong> and process state (<code>OomAdjuster</code>). <code>lmkd</code> kills the least important processes first when memory runs low.</p></div>
+            <div class="glass card"><h4 class="c-blue">Activities &amp; tasks (ATMS)</h4><p class="small"><code>ActivityStarter</code> resolves and checks every <code>startActivity()</code>, places the <code>ActivityRecord</code> in a <code>Task</code>, applies launch modes and flags, and drives the lifecycle (<code>onCreate</code> … <code>onDestroy</code>) through <code>ClientTransaction</code>s.</p></div>
+            <div class="glass card"><h4 class="c-green">Services</h4><p class="small"><code>ActiveServices</code> handles <code>startService</code>, <code>bindService</code> and foreground services: permission checks, background-start limits, the 5–10 s <code>startForeground()</code> deadline and service ANRs.</p></div>
+            <div class="glass card"><h4 class="c-green">Broadcasts &amp; providers</h4><p class="small"><code>BroadcastQueue</code> delivers broadcasts to registered and manifest receivers. <code>ContentProviderHelper</code> starts provider processes and hands out provider binders.</p></div>
+            <div class="glass card"><h4 class="c-amber">ANRs &amp; crashes</h4><p class="small">Detects unresponsive apps (input 5 s, foreground broadcast 10 s, foreground service 20 s), collects stack traces and shows the ANR or crash dialog. Records why each process died (<code>ApplicationExitInfo</code>).</p></div>
+            <div class="glass card"><h4 class="c-amber">Users, permissions, debugging</h4><p class="small"><code>UserController</code> starts, switches and stops users (used by CarUserService, <a href="users.html#architecture">8.2</a>). Also <code>checkPermission()</code> for UIDs, instrumentation and heap dumps.</p></div>
+          </div>
+
+          <h3>Concepts: how AMS sees the world</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Object</th><th>Represents</th><th>Where you see it</th></tr></thead>
+              <tbody>
+                <tr><td><code>ProcessRecord</code></td><td>One running app process: pid, uid, package list, process state, oom_adj</td><td><code>dumpsys activity processes</code></td></tr>
+                <tr><td><code>ActivityRecord</code></td><td>One activity instance; also the window token for its windows</td><td><code>dumpsys activity activities</code></td></tr>
+                <tr><td><code>Task</code></td><td>A back stack of activities (what Recents shows)</td><td><code>dumpsys activity recents</code></td></tr>
+                <tr><td><code>ServiceRecord</code> / <code>ConnectionRecord</code></td><td>A started or bound service and each client binding to it</td><td><code>dumpsys activity services</code></td></tr>
+                <tr><td><code>BroadcastRecord</code></td><td>A broadcast in flight with its list of receivers</td><td><code>dumpsys activity broadcasts</code></td></tr>
+                <tr><td><code>ContentProviderRecord</code></td><td>A published provider and its connections</td><td><code>dumpsys activity providers</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>The <strong>oom_adj</strong> score is what keeps the right apps alive: the foreground activity gets 0, a visible activity 100, a perceptible app (for example a foreground service playing music) 200, a service 500, the home app 600 and cached apps 900+. Binding raises the importance of the bound service to that of its client, which is why a bound service of a foreground app is not killed.</p>
+
+          <h3>Step by step: cold start of an activity</h3>
+          <div id="ams-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="ActivityManager / ActivityTaskManager — inspect" data-label="adb">
+adb shell dumpsys activity -h                                   # every dump section AMS supports
+adb shell dumpsys activity activities | grep -E "topResumedActivity|ResumedActivity"
+adb shell dumpsys activity top                                  # view hierarchy of the top activity
+adb shell dumpsys activity recents                              # tasks shown in Recents
+adb shell dumpsys activity services com.example.servicea        # ServiceRecords + who is bound to them
+adb shell dumpsys activity broadcasts                           # queues, history, registered receivers
+adb shell dumpsys activity processes                            # ProcessRecords, process states
+adb shell dumpsys activity oom                                  # oom_adj of every process
+adb shell dumpsys activity lru                                  # LRU list (most recently used first)
+adb shell dumpsys activity providers
+adb shell dumpsys activity exit-info com.example.app            # why the app's processes died
+adb shell dumpsys meminfo com.example.app                       # PSS / RSS breakdown of one app
+adb logcat -b events | grep -E "am_proc_start|wm_on_create_called|wm_on_resume_called"
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="ActivityManager — drive it (am = cmd activity)" data-label="adb">
+adb shell am start -W -n com.example.app/.MainActivity          # start and print TotalTime / WaitTime
+adb shell am start -a android.intent.action.VIEW -d "geo:0,0?q=fuel"
+adb shell am start-foreground-service -n com.example.servicea/.ExportService
+adb shell am broadcast -a com.example.servicea.action.PING -n com.example.servicea/.ApiReceiver
+adb shell am force-stop com.example.app                         # kill + clear alarms, jobs, notifications
+adb shell am kill com.example.app                               # kill only if it is in the background
+adb shell am get-current-user
+adb shell am switch-user 11
+adb shell am set-debug-app -w com.example.app                   # wait for a debugger on next start
+          </script>
+        </section>
+
+        <!-- ======================================================= 12.3 -->
+        <section class="doc-section" id="pms" data-title="PackageManagerService (PMS)">
+          <div class="sec-head"><h2><span class="sec-num">12.3</span>PackageManagerService</h2></div>
+          <p><strong>PackageManagerService (PMS)</strong>, service name <code>package</code>, is the device's database of installed apps. It parses every APK's manifest, gives each app its UID, installs and removes packages, and answers the most frequent question in the system: <em>"which component handles this Intent?"</em> Permission state and checks live in a separate <code>PermissionManagerService</code> that PMS delegates to.</p>
+
+          <h3>Functionality &amp; features</h3>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Boot scan</h4><p class="small">At boot it scans <code>/system</code>, <code>/system_ext</code>, <code>/product</code>, <code>/vendor</code>, <code>/odm</code>, APEXes and <code>/data/app</code>, and reconciles them with <code>/data/system/packages.xml</code>. That scan is a large part of boot time on first boot and after an OTA.</p></div>
+            <div class="glass card"><h4 class="c-blue">Install, update, uninstall</h4><p class="small"><code>PackageInstallerService</code> sessions receive the APK; PMS verifies signatures (APK Signature Scheme v2/v3/v4), checks updates keep the same certificate and versionCode rules, then commits.</p></div>
+            <div class="glass card"><h4 class="c-green">Intent resolution</h4><p class="small"><code>ComponentResolver</code> holds every intent filter. <code>resolveIntent()</code>, <code>queryIntentActivities/Services/Receivers()</code> are what AMS calls on each <code>startActivity</code>, <code>bindService</code> and broadcast.</p></div>
+            <div class="glass card"><h4 class="c-green">Package visibility</h4><p class="small">Since Android 11, <code>AppsFilter</code> hides other apps from an app unless it declares <code>&lt;queries&gt;</code>, holds <code>QUERY_ALL_PACKAGES</code>, or the other app interacted with it. Hidden apps simply look "not installed".</p></div>
+            <div class="glass card"><h4 class="c-amber">UIDs, permissions, features</h4><p class="small">Assigns app IDs (10000+), shared UIDs, grants install-time permissions and allowlisted privileged permissions; answers <code>hasSystemFeature()</code> from <code>SystemConfig</code> (<code>/system/etc/permissions/*.xml</code>), e.g. <code>android.hardware.type.automotive</code>.</p></div>
+            <div class="glass card"><h4 class="c-amber">Compilation &amp; state</h4><p class="small">Triggers dexopt through ART Service after install and during idle maintenance; stores enabled/disabled components, default apps and per-user install state.</p></div>
+          </div>
+
+          <h3>Concepts: where package data lives</h3>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Item</th><th>What it holds</th></tr></thead>
+              <tbody>
+                <tr><td><code>/data/system/packages.xml</code></td><td>Persistent settings for every package: code path, app ID, flags, signatures, per-user state (installed, enabled, stopped). Written by <code>Settings</code>.</td></tr>
+                <tr><td><code>/data/system/packages.list</code></td><td>One line per app: package, UID, debuggable flag, data dir, SELinux info. Read by native code such as <code>run-as</code>.</td></tr>
+                <tr><td><code>/data/app/~~&lt;random&gt;/&lt;pkg&gt;-&lt;random&gt;/</code></td><td>Installed APKs, native libraries and compiled <code>oat/</code> files of updated or downloaded apps.</td></tr>
+                <tr><td><code>/data/user/&lt;userId&gt;/&lt;pkg&gt;</code></td><td>Each user's private app data, created by <code>installd</code>.</td></tr>
+                <tr><td><code>PackageSetting</code> / <code>AndroidPackage</code></td><td>In-memory state and the parsed manifest of one package. PMS serves reads from an immutable <strong>snapshot</strong> (<code>Computer</code>) so most queries take no lock.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Step by step: <code>adb install</code></h3>
+          <div id="pms-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="PackageManager — inspect" data-label="adb">
+adb shell dumpsys package -h                                    # every dump section PMS supports
+adb shell dumpsys package com.example.servicea                  # versionCode, codePath, userId (UID), flags,
+                                                                # declared/requested/granted permissions, components
+adb shell dumpsys package r service                             # intent resolver table for services
+adb shell dumpsys package queries                               # package-visibility calculations
+adb shell dumpsys package permission com.example.servicea.permission.BIND_TRIP_API
+adb shell dumpsys package f                                     # system features (hasSystemFeature)
+adb shell dumpsys package l                                     # shared libraries
+adb shell dumpsys package installs                              # active install sessions
+adb shell cat /data/system/packages.list | grep example         # needs root
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="PackageManager — drive it (pm = cmd package)" data-label="adb">
+adb shell pm list packages -f -U -3                             # third-party apps with path and UID
+adb shell pm path com.example.servicea
+adb shell pm list features | grep automotive
+adb shell pm resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME
+adb shell pm query-services --brief -a com.example.servicea.action.BIND_TRIP_API
+adb shell pm query-receivers --brief -a com.example.servicea.action.EXPORT_TRIP_LOG
+adb shell pm grant com.example.appb android.permission.POST_NOTIFICATIONS
+adb shell pm disable-user --user 0 com.example.app              # hide an app for user 0
+adb shell pm clear com.example.app                              # wipe its data
+adb install -r -g app.apk                                       # reinstall and grant runtime permissions
+          </script>
+        </section>
+
+        <!-- ======================================================= 12.4 -->
+        <section class="doc-section" id="wms" data-title="WindowManagerService (WMS)">
+          <div class="sec-head"><h2><span class="sec-num">12.4</span>WindowManagerService</h2></div>
+          <p><strong>WindowManagerService (WMS)</strong>, service name <code>window</code>, decides <em>where</em> every window goes, <em>in what order</em> it is stacked and <em>which one</em> has focus. It does not draw pixels: each window gets a <strong>SurfaceControl</strong> (a layer in SurfaceFlinger), the app draws into it, and SurfaceFlinger composes the layers onto the display.</p>
+
+          <h3>Functionality &amp; features</h3>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Window management</h4><p class="small">Adds and removes windows (<code>addWindow</code>, <code>removeWindow</code>), checks the window type is allowed for the caller and that the token is valid, computes frames and insets (status bar, navigation bar, IME, cutouts).</p></div>
+            <div class="glass card"><h4 class="c-blue">Z-order &amp; hierarchy</h4><p class="small">Keeps one tree of <code>WindowContainer</code>s per device; the position in the tree and the window type decide the layer order in SurfaceFlinger.</p></div>
+            <div class="glass card"><h4 class="c-green">Focus &amp; input</h4><p class="small">Chooses the focused window per display and publishes the list of input windows (bounds, touchable region, flags) that InputDispatcher uses to route touches and keys.</p></div>
+            <div class="glass card"><h4 class="c-green">Displays &amp; rotation</h4><p class="small">One <code>DisplayContent</code> per display — on a car: driver, cluster, passenger, rear seats. Handles rotation, size and density overrides.</p></div>
+            <div class="glass card"><h4 class="c-amber">Transitions &amp; animations</h4><p class="small">Collects changes into transitions (Shell transitions) and lets the WM Shell in SystemUI animate them; manages starting windows (splash screens).</p></div>
+            <div class="glass card"><h4 class="c-amber">Others</h4><p class="small">Wallpaper, IME placement, screenshots, drag and drop, secure windows (<code>FLAG_SECURE</code>), window tracing for Winscope.</p></div>
+          </div>
+
+          <h3>Concepts: the window hierarchy</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="WindowContainer tree (simplified)" data-label="tree">
+RootWindowContainer
+ └─ DisplayContent  (display 0: driver screen)
+     └─ DisplayArea.Root
+         ├─ TaskDisplayArea  "DefaultTaskDisplayArea"
+         │   └─ Task #12  (back stack of an app)
+         │       └─ ActivityRecord  com.example.app/.MainActivity   ← a WindowToken
+         │           └─ WindowState  (the activity's main window)
+         │               └─ WindowState  (a sub-window, e.g. popup)
+         ├─ WindowToken  (status bar)       → WindowState "StatusBar"
+         └─ WindowToken  (IME)              → WindowState "InputMethod"
+ └─ DisplayContent  (display 2: passenger screen)
+     └─ …
+          </script>
+            <div class="table-wrap mt">
+              <table class="t">
+                <thead><tr><th>Class</th><th>Role</th></tr></thead>
+                <tbody>
+                  <tr><td><code>WindowState</code></td><td>One window: its attributes, frame, surface and input channel.</td></tr>
+                  <tr><td><code>WindowToken</code></td><td>Groups windows of one owner; apps cannot add a window without a valid token (an activity's token is its <code>ActivityRecord</code>).</td></tr>
+                  <tr><td><code>Session</code></td><td>One per app process (<code>IWindowSession</code>); apps call <code>addToDisplay</code>, <code>relayout</code>, <code>finishDrawing</code> on it.</td></tr>
+                  <tr><td><code>DisplayPolicy</code></td><td>Layout rules for system bars and insets of one display.</td></tr>
+                  <tr><td>Window types</td><td><code>TYPE_APPLICATION</code> (1–99), sub-windows (1000–1999), system windows (2000+) such as <code>TYPE_STATUS_BAR</code> or <code>TYPE_APPLICATION_OVERLAY</code> (needs <code>SYSTEM_ALERT_WINDOW</code>).</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+          <h3>Step by step: an app adds a window and shows its first frame</h3>
+          <div id="wms-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="WindowManager — inspect" data-label="adb">
+adb shell dumpsys window -h                                     # every dump section WMS supports
+adb shell dumpsys window windows                                # every WindowState: type, flags, frame, surface
+adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp"  # focused window and focused activity
+adb shell dumpsys window displays                               # each DisplayContent: size, rotation, tasks
+adb shell dumpsys window containers                             # the full WindowContainer tree
+adb shell dumpsys window tokens
+adb shell dumpsys window visible                                # only visible windows
+adb shell dumpsys window lastanr                                # window state at the last ANR
+adb shell dumpsys window StatusBar                              # windows whose name contains "StatusBar"
+adb shell dumpsys SurfaceFlinger --list                         # layers SurfaceFlinger is composing
+          </script>
+          <script type="text/plain" data-code data-lang="conf" data-file="WindowManager — drive it (wm = cmd window)" data-label="adb">
+adb shell wm size                                               # physical and override size
+adb shell wm density
+adb shell wm size 1920x720 -d 2                                 # override display 2 (e.g. a cluster test)
+adb shell wm size reset -d 2
+adb shell wm user-rotation lock 1                               # force landscape rotation 90°
+adb shell wm tracing start && adb shell wm tracing stop         # WM trace for Winscope (userdebug)
+          </script>
+        </section>
+
+        <!-- ======================================================= 12.5 -->
+        <section class="doc-section" id="input" data-title="InputManagerService">
+          <div class="sec-head"><h2><span class="sec-num">12.5</span>InputManagerService</h2></div>
+          <p><strong>InputManagerService</strong>, service name <code>input</code>, is a thin Java shell around a native pipeline in <code>libinputflinger</code> that runs on two threads inside <code>system_server</code>: <strong>InputReader</strong> turns raw kernel events into Android events, <strong>InputDispatcher</strong> delivers them to the right window. On a car the same pipeline also carries steering-wheel keys and rotary events injected by CarInputService (<a href="displays.html#input-routing">6.3</a>).</p>
+
+          <h3>Functionality &amp; features</h3>
+          <div class="grid grid-3">
+            <div class="glass card"><h4 class="c-blue">Devices</h4><p class="small"><code>EventHub</code> watches <code>/dev/input/event*</code>, loads key layout (<code>.kl</code>) and input device configuration (<code>.idc</code>) files and associates touchscreens with displays.</p></div>
+            <div class="glass card"><h4 class="c-green">Reading &amp; mapping</h4><p class="small">InputReader's <code>InputMapper</code>s convert evdev codes to <code>KeyEvent</code>s and <code>MotionEvent</code>s in display coordinates (touch, keyboard, rotary, joystick).</p></div>
+            <div class="glass card"><h4 class="c-amber">Dispatching &amp; ANR</h4><p class="small">InputDispatcher lets the policy intercept keys (power, volume, home), picks the target window, sends the event over an <code>InputChannel</code> and raises an ANR if the app does not answer in 5 s.</p></div>
+          </div>
+
+          <h3>Step by step: a touch from the panel to <code>onTouchEvent()</code></h3>
+          <div id="input-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="Input — inspect and inject" data-label="adb">
+adb shell dumpsys input                                         # devices, InputReader & InputDispatcher state,
+                                                                # focused window per display, pending ANRs
+adb shell getevent -lp                                          # input devices and their axes / keys
+adb shell getevent -lt                                          # raw evdev events with names and timestamps
+adb shell input tap 500 300
+adb shell input swipe 100 600 100 100 300                       # x1 y1 x2 y2 duration(ms)
+adb shell input keyevent KEYCODE_HOME
+adb shell input text "hello"
+adb shell input -d 2 tap 300 300                                # on display 2 (e.g. a passenger screen)
+adb shell settings put system pointer_location 1                # draw touch traces on screen
+          </script>
+        </section>
+
+        <!-- ======================================================= 12.6 -->
+        <section class="doc-section" id="power" data-title="PowerManagerService">
+          <div class="sec-head"><h2><span class="sec-num">12.6</span>PowerManagerService</h2></div>
+          <p><strong>PowerManagerService</strong>, service name <code>power</code>, decides whether the device is awake, the screen on and the CPU allowed to suspend. It combines <strong>wake locks</strong>, <strong>user activity</strong> and the charging state into one <em>wakefulness</em> value. On a car, <code>CarPowerManagementService</code> sits above it and drives screen and suspend from the vehicle's power state (<a href="power.html#overview">4.1</a>), but apps' wake locks still go through PowerManagerService.</p>
+
+          <h3>Functionality &amp; features</h3>
+          <div class="grid grid-2">
+            <div class="glass card"><h4 class="c-blue">Wakefulness</h4><p class="small"><code>AWAKE</code> → <code>DREAMING</code> / <code>DOZING</code> → <code>ASLEEP</code>, per display group. Controls the display power state through DisplayManager's <code>DisplayPowerController</code>.</p></div>
+            <div class="glass card"><h4 class="c-blue">Wake locks</h4><p class="small"><code>PARTIAL_WAKE_LOCK</code> keeps the CPU running with the screen off; screen wake-lock levels are deprecated in favour of <code>FLAG_KEEP_SCREEN_ON</code>. Every lock is attributed to a UID (and <code>WorkSource</code>) for battery stats.</p></div>
+            <div class="glass card"><h4 class="c-green">User activity &amp; timeouts</h4><p class="small">Touches and keys reset the screen-off timeout; <code>stay on while plugged in</code>, attention and the device admin's maximum timeout are applied here.</p></div>
+            <div class="glass card"><h4 class="c-green">Suspend</h4><p class="small">When nothing needs the CPU, it releases its suspend blocker in the native <code>SystemSuspend</code> service, which lets the kernel suspend. Also handles reboot and shutdown requests.</p></div>
+          </div>
+
+          <h3>Step by step: a wake lock, the screen timeout and suspend</h3>
+          <div id="power-seq"></div>
+
+          <h3>Commands to test</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="Power — inspect and drive" data-label="adb">
+adb shell dumpsys power                                         # mWakefulness, wake locks, timeouts, suspend blockers
+adb shell dumpsys power | grep -A 20 "Wake Locks:"
+adb shell dumpsys deviceidle                                    # Doze state (DeviceIdleController)
+adb shell dumpsys battery unplug                                # pretend the device runs on battery
+adb shell dumpsys battery reset
+adb shell svc power stayon usb                                  # keep the screen on while on USB
+adb shell input keyevent KEYCODE_SLEEP                          # go to sleep / KEYCODE_WAKEUP to wake
+adb shell dumpsys car_service --services CarPowerManagementService   # AAOS: the car power state on top
+          </script>
+        </section>
+
+        <!-- ======================================================= 12.7 -->
+        <section class="doc-section" id="more-services" data-title="Other framework services">
+          <div class="sec-head"><h2><span class="sec-num">12.7</span>Other framework services at a glance</h2></div>
+          <p>The same recipe — <code>SystemService</code> + Binder stub + manager + <code>dump()</code> — repeats for roughly a hundred services. These are the ones you meet most often when debugging a car or phone:</p>
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr><th>Service (class)</th><th>dumpsys name</th><th>What it owns</th><th>Useful command</th></tr></thead>
+              <tbody>
+                <tr><td>DisplayManagerService</td><td><code>display</code></td><td>Physical and virtual displays, brightness, display modes</td><td><code>dumpsys display | grep mBaseDisplayInfo</code></td></tr>
+                <tr><td>AudioService (+ native audioserver)</td><td><code>audio</code>, <code>media.audio_policy</code>, <code>media.audio_flinger</code></td><td>Volume, focus, routing; the native side mixes and routes streams</td><td><code>dumpsys audio</code></td></tr>
+                <tr><td>AlarmManagerService</td><td><code>alarm</code></td><td>Wake-up and exact alarms</td><td><code>dumpsys alarm | grep -A3 com.example</code></td></tr>
+                <tr><td>JobSchedulerService</td><td><code>jobscheduler</code></td><td>Deferred jobs and their constraints (Garage Mode uses idle jobs)</td><td><code>cmd jobscheduler run -f com.example.app 1</code></td></tr>
+                <tr><td>NotificationManagerService</td><td><code>notification</code></td><td>Notifications, channels, DND</td><td><code>dumpsys notification --noredact</code></td></tr>
+                <tr><td>ConnectivityService</td><td><code>connectivity</code></td><td>Networks, default network, VPN</td><td><code>dumpsys connectivity</code></td></tr>
+                <tr><td>LocationManagerService</td><td><code>location</code></td><td>Location providers and requests</td><td><code>dumpsys location</code></td></tr>
+                <tr><td>UserManagerService</td><td><code>user</code></td><td>Users and their restrictions</td><td><code>pm list users</code></td></tr>
+                <tr><td>InputMethodManagerService</td><td><code>input_method</code></td><td>Keyboards and the IME window</td><td><code>dumpsys input_method</code></td></tr>
+                <tr><td>AppOpsService</td><td><code>appops</code></td><td>Fine-grained runtime operations per UID / package</td><td><code>cmd appops get com.example.app</code></td></tr>
+                <tr><td>SurfaceFlinger (native)</td><td><code>SurfaceFlinger</code></td><td>Layer composition and display output</td><td><code>dumpsys SurfaceFlinger</code></td></tr>
+                <tr><td>CarService (AAOS)</td><td><code>car_service</code></td><td>Every car service (<a href="platform.html#carservice">11.5</a>)</td><td><code>dumpsys car_service --list</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- ======================================================= 12.8 -->
+        <section class="doc-section" id="dumpsys" data-title="dumpsys, cmd & debugging toolkit">
+          <div class="sec-head"><h2><span class="sec-num">12.8</span><code>dumpsys</code>, <code>cmd</code> &amp; the debugging toolkit</h2></div>
+          <p><code>dumpsys</code> is not a tool with built-in knowledge of each service. It only asks <code>servicemanager</code> for a binder and calls the generic <code>dump()</code> transaction on it; the service itself decides what to print. <code>cmd</code> works the same way with the <code>shellCommand</code> transaction. That is why the output format changes between releases — the source of the service's <code>dump()</code> is the documentation.</p>
+          <div id="dumpsys-seq"></div>
+
+          <h3>Cheat sheet</h3>
+          <script type="text/plain" data-code data-lang="conf" data-file="Generic tools" data-label="adb">
+adb shell dumpsys -l                                            # every service registered in servicemanager
+adb shell service list                                          # same, with the AIDL descriptor of each
+adb shell cmd -l                                                # services that implement shell commands
+adb shell dumpsys --pid activity                                # pid of the process hosting a service
+adb shell dumpsys -t 60 package                                 # raise the default 10 s dump timeout
+adb shell dumpsys window -h                                     # most services print their own help
+adb shell dumpsys activity service com.example.servicea/.TripApiService   # the app service's own dump()
+adb bugreport bugreport.zip                                     # dumpsys of everything + logs + traces
+          </script>
+
+          <div class="table-wrap mt">
+            <table class="t">
+              <thead><tr><th>Question</th><th>Command</th></tr></thead>
+              <tbody>
+                <tr><td>Which activity / window is in front?</td><td><code>dumpsys activity activities | grep ResumedActivity</code> · <code>dumpsys window | grep mCurrentFocus</code></td></tr>
+                <tr><td>Is my service running, and who is bound to it?</td><td><code>dumpsys activity services &lt;pkg&gt;</code></td></tr>
+                <tr><td>Why was my process killed?</td><td><code>dumpsys activity exit-info &lt;pkg&gt;</code> · <code>dumpsys activity oom</code></td></tr>
+                <tr><td>Which permissions does my app have, what UID?</td><td><code>dumpsys package &lt;pkg&gt;</code></td></tr>
+                <tr><td>Who handles this Intent?</td><td><code>pm query-services|query-receivers|resolve-activity --brief -a &lt;action&gt;</code></td></tr>
+                <tr><td>Where do touches go?</td><td><code>dumpsys input</code> · <code>getevent -lt</code></td></tr>
+                <tr><td>What keeps the device awake?</td><td><code>dumpsys power</code> · <code>dumpsys batterystats</code></td></tr>
+                <tr><td>Why did the app freeze?</td><td><code>/data/anr/</code> traces · <code>dumpsys window lastanr</code> · <code>logcat -b events | grep am_anr</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="callout tip">
+            <div class="ci">🔐</div>
+            <div><span class="ct">Permissions</span>
+              <p>A service's <code>dump()</code> requires <code>android.permission.DUMP</code>, and <code>cmd</code> usually requires the shell UID or root. Both are held by <code>adb shell</code>, so they work on user builds too, but an app cannot call them. A few dumps (<code>/data/system/packages.list</code>, <code>/data/anr</code> on user builds) need root or a <code>userdebug</code> build.</p>
+            </div>
+          </div>
+        </section>
+
+        <div id="pager"></div>
+      </div>
+    </main>
+  </div>
+  <div id="site-footer"></div>
+
+  <script src="assets/js/glossary-data.js?v=__BUILD__"></script>
+  <script src="assets/js/core.js?v=__BUILD__"></script>
+  <script src="assets/js/diagrams.js?v=__BUILD__"></script>
+  <script src="assets/js/pages/services.js?v=__BUILD__"></script>
+</body>
+</html>
